@@ -271,8 +271,13 @@ button {
   align-items: center;
   justify-content: space-between;
   gap: 20px;
-  background: #fff;
+
+  background: rgba(18, 53, 40, 0.96);
   border-bottom: 1px solid var(--border);
+  color: #f5f5e9;
+
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
 }
 
 .topbar-left,
@@ -307,10 +312,30 @@ button {
   gap: 9px;
   width: 240px;
   padding: 10px 12px;
-  border: 1px solid #e7ebe4;
+
+  border: 1px solid rgba(199, 243, 107, 0.2);
   border-radius: 9px;
-  color: #929c91;
-  background: #fbfcfa;
+  color: #c7d8c8;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.search-box input {
+  width: 100%;
+  border: 0;
+  outline: none;
+  background: transparent;
+  font-size: 11px;
+  color: #f5f5e9;
+}
+
+.search-box input::placeholder {
+  color: #b2c6b5;
+}
+
+.search-shortcut {
+  white-space: nowrap;
+  font-size: 9px;
+  color: #b2c6b5;
 }
 
 .search-box input {
@@ -334,10 +359,22 @@ button {
   display: grid;
   place-items: center;
   border-radius: 10px;
-  background: #fff;
+
+  background: rgba(255, 255, 255, 0.06);
   border: 1px solid var(--border);
-  color: #6c796d;
+  color: #c7f36b;
   position: relative;
+}
+
+.notification-button span {
+  position: absolute;
+  top: 8px;
+  right: 9px;
+  height: 7px;
+  width: 7px;
+  border-radius: 50%;
+  background: #d57e54;
+  border: 1px solid #173d2d;
 }
 
 .notification-button span {
