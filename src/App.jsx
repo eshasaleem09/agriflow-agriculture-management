@@ -13,6 +13,8 @@ import Weather from "./pages/Weather";
 import Analytics from "./pages/Analytics";
 import Supplies from "./pages/Supplies";
 import Orders from "./pages/Orders";
+import Buyers from "./pages/Buyers";
+import HarvestOrders from "./pages/HarvestOrders";
 
 import "./App.css";
 
@@ -32,6 +34,11 @@ function App() {
           <Route path="supplies" element={<Supplies />} />
 
           <Route path="orders" element={<Orders />} />
+          <Route path="buyers" element={<Buyers />} />
+          <Route
+  path="harvest-orders"
+  element={<HarvestOrders />}
+/>
 
           <Route
             path="*"

@@ -1,3 +1,6 @@
+
+import { useState } from "react";
+
 import {
   LayoutDashboard,
   Sprout,
@@ -5,11 +8,13 @@ import {
   ChartNoAxesCombined,
   Package,
   ShoppingCart,
-  Settings,
   Search,
   Bell,
   Leaf,
   Menu,
+  Users,
+  CalendarDays,
+  X,
 } from "lucide-react";
 
 import { NavLink, Outlet } from "react-router-dom";
@@ -45,26 +50,64 @@ const menuItems = [
     path: "/orders",
     icon: ShoppingCart,
   },
+  {
+    label: "Buyers",
+    path: "/buyers",
+    icon: Users,
+  },
+  {
+    label: "Harvest & Orders",
+    path: "/harvest-orders",
+    icon: CalendarDays,
+  },
 ];
 
 function MainLayout() {
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+
+  const closeSidebar = () => {
+    setIsSidebarOpen(false);
+  };
+
   return (
     <div className="app-container">
-      <aside className="sidebar">
-        <div className="brand">
-          <div className="brand-icon">
+      {/* Mobile overlay */}
+      {isSidebarOpen && (
+        <button
+          type="button"
+          className="sidebar-overlay"
+          aria-label="Close navigation menu"
+          onClick={closeSidebar}
+        />
+      )}
+
+      {/* Sidebar */}
+      <aside
+        className={`sidebar ${isSidebarOpen ? "sidebar-open" : ""}`}
+      >
+        <div className="sidebar-logo">
+          <div className="logo-icon">
             <Leaf size={25} />
           </div>
 
-          <div>
+          <div className="logo-text">
             <h2>AgriFlow</h2>
-            <span>Farm Management</span>
+            <span>Agriculture Management</span>
           </div>
+
+          <button
+            type="button"
+            className="sidebar-close"
+            aria-label="Close menu"
+            onClick={closeSidebar}
+          >
+            <X size={22} />
+          </button>
         </div>
 
-        <div className="menu-heading">WORKSPACE</div>
+        <nav className="sidebar-menu" aria-label="Main navigation">
+          <p className="menu-heading">MAIN MENU</p>
 
-        <nav className="sidebar-menu">
           {menuItems.map((item) => {
             const Icon = item.icon;
 
@@ -73,62 +116,58 @@ function MainLayout() {
                 to={item.path}
                 key={item.label}
                 end={item.path === "/"}
+                onClick={closeSidebar}
                 className={({ isActive }) =>
                   `menu-item ${isActive ? "active" : ""}`
                 }
               >
-                <Icon size={19} />
-                <span>{item.label}</span>
+                <Icon size={20} />
 
-                {item.label === "Orders" && (
-                  <span className="menu-badge">4</span>
-                )}
+                <span>{item.label}</span>
               </NavLink>
             );
           })}
         </nav>
 
-        <div className="sidebar-bottom">
-          <div className="help-card">
-            <div className="help-icon">
-              <Sprout size={22} />
-            </div>
-
-            <h4>Growing together</h4>
-
-            <p>Manage your farm smarter every day.</p>
+        <div className="sidebar-footer">
+          <div className="sidebar-footer-icon">
+            <Sprout size={20} />
           </div>
 
-          <div className="menu-item settings-item">
-            <Settings size={19} />
-            <span>Settings</span>
-          </div>
-
-          <div className="profile">
-            <div className="profile-avatar">FA</div>
-
-            <div className="profile-info">
-              <strong>Farm Admin</strong>
-              <span>Administrator</span>
-            </div>
+          <div>
+            <p>Grow Smarter</p>
+            <span>Manage your farm efficiently</span>
           </div>
         </div>
       </aside>
 
+      {/* Main content */}
       <main className="main-content">
+        {/* Top navigation bar */}
         <header className="topbar">
           <div className="topbar-left">
             <button
-              className="mobile-menu"
               type="button"
-              aria-label="Menu"
+              className="mobile-menu"
+              aria-label={isSidebarOpen ? "Close menu" : "Open menu"}
+              aria-expanded={isSidebarOpen}
+              onClick={() =>
+                setIsSidebarOpen((open) => !open)
+              }
             >
-              <Menu size={23} />
+              {isSidebarOpen ? (
+                <X size={23} />
+              ) : (
+                <Menu size={23} />
+              )}
             </button>
 
-            <div>
-              <p className="breadcrumb">Workspace / Overview</p>
-              <h1>AgriFlow Dashboard</h1>
+            <div className="page-heading">
+              <h1>Farm Dashboard</h1>
+
+              <p className="breadcrumb">
+                Home / <span>Overview</span>
+              </p>
             </div>
           </div>
 
@@ -138,33 +177,34 @@ function MainLayout() {
 
               <input
                 type="search"
-                placeholder="Search anything..."
+                placeholder="Search..."
                 aria-label="Search"
               />
             </div>
 
             <button
-              className="notification-button"
               type="button"
+              className="notification-button"
               aria-label="Notifications"
             >
               <Bell size={20} />
-              <span></span>
+              <span className="notification-dot" />
             </button>
+
+            <div className="profile">
+              <div className="profile-avatar">AF</div>
+
+              <div className="profile-info">
+                <p>Farm Manager</p>
+                <span>Administrator</span>
+              </div>
+            </div>
           </div>
         </header>
 
+        {/* Current page */}
         <div className="dashboard-content">
           <Outlet />
-
-          <footer className="footer">
-            <p>© 2026 AgriFlow. Growing a better tomorrow.</p>
-
-            <div>
-              <span>Made for smarter farming</span>
-              <Sprout size={16} />
-            </div>
-          </footer>
         </div>
       </main>
     </div>
