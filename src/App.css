@@ -4182,7 +4182,6 @@ margin-left: 0 !important;
 flex-wrap: nowrap;
 }
 }
-```css
 /* ===== Harvest & Orders: Text Visibility Fix ===== */
 
 .harvest-page {
@@ -4226,4 +4225,3 @@ flex-wrap: nowrap;
 .harvest-page .harvest-orders-table-wrapper {
   background-color: #ffffff;
 }
-```
