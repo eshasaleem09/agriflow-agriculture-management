@@ -6,6 +6,8 @@ import {
 } from "react-router-dom";
 
 import MainLayout from "./layout/MainLayout.jsx";
+import ProtectedRoute from "./components/auth/ProtectedRoute.jsx";
+import Tasks from "./pages/Tasks";
 
 import Dashboard from "./pages/Dashboard";
 import Crops from "./pages/Crops";
@@ -15,6 +17,10 @@ import Supplies from "./pages/Supplies";
 import Orders from "./pages/Orders";
 import Buyers from "./pages/Buyers";
 import HarvestOrders from "./pages/HarvestOrders";
+import Login from "./pages/Login";
+import Inventory from "./pages/Inventory";
+import Expenses from "./pages/Expenses";
+import Reports from "./pages/Reports";
 
 import "./App.css";
 
@@ -22,32 +28,35 @@ function App() {
   return (
     <BrowserRouter>
       <Routes>
-        <Route path="/" element={<MainLayout />}>
-          <Route index element={<Dashboard />} />
+        <Route path="/login" element={<Login />} />
 
-          <Route path="crops" element={<Crops />} />
-
-          <Route path="weather" element={<Weather />} />
-
-          <Route path="analytics" element={<Analytics />} />
-
-          <Route path="supplies" element={<Supplies />} />
-
-          <Route path="orders" element={<Orders />} />
-          <Route path="buyers" element={<Buyers />} />
-          <Route
-  path="harvest-orders"
-  element={<HarvestOrders />}
-/>
-
-          <Route
-            path="*"
-            element={<Navigate to="/" replace />}
-          />
+        <Route element={<ProtectedRoute />}>
+          <Route path="/" element={<MainLayout />}>
+            <Route index element={<Dashboard />} />
+            <Route path="crops" element={<Crops />} />
+            <Route path="weather" element={<Weather />} />
+            <Route path="analytics" element={<Analytics />} />
+            <Route path="supplies" element={<Supplies />} />
+            <Route path="orders" element={<Orders />} />
+            <Route path="buyers" element={<Buyers />} />
+            <Route path="tasks" element={<Tasks />} />
+            <Route path="inventory" element={<Inventory />} />
+            <Route path="expenses" element={<Expenses />} />
+            <Route path="reports" element={<Reports />} />
+            <Route
+              path="harvest-orders"
+              element={<HarvestOrders />}
+            />
+            <Route
+              path="*"
+              element={<Navigate to="/" replace />}
+            />
+          </Route>
         </Route>
       </Routes>
     </BrowserRouter>
   );
 }
+
 
 export default App;

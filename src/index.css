@@ -25,3 +25,155 @@ select:focus-visible {
   outline: 2px solid #398653;
   outline-offset: 3px;
 }
+/* AgriFlow Authentication */
+.login-page {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background: #173d2d;
+}
+
+.login-card {
+  width: 100%;
+  max-width: 430px;
+  padding: 36px;
+  border: 1px solid rgba(199, 243, 107, 0.2);
+  border-radius: 22px;
+  background: #234a36;
+  color: #f4f7ef;
+  box-shadow: 0 24px 70px rgba(0, 0, 0, 0.22);
+}
+
+.login-logo {
+  width: 60px;
+  height: 60px;
+  display: grid;
+  place-items: center;
+  margin-bottom: 20px;
+  border-radius: 18px;
+  background: #c7f36b;
+  color: #173d2d;
+}
+
+.login-card h1 {
+  margin: 0 0 8px;
+  font-size: 27px;
+}
+
+.login-subtitle {
+  margin-bottom: 26px;
+  color: #c6d4c9;
+}
+
+.login-card label {
+  display: block;
+  margin: 16px 0 8px;
+  font-size: 14px;
+}
+
+.login-card select,
+.login-input {
+  width: 100%;
+  min-height: 46px;
+  border: 1px solid #53715d;
+  border-radius: 10px;
+  background: #173d2d;
+  color: #ffffff;
+}
+
+.login-card select {
+  padding: 0 12px;
+}
+
+.login-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 0 12px;
+}
+
+.login-input input {
+  width: 100%;
+  min-width: 0;
+  border: none;
+  outline: none;
+  background: transparent;
+  color: white;
+}
+
+.login-input input::placeholder {
+  color: #aabdaf;
+}
+
+.login-submit {
+  width: 100%;
+  margin-top: 24px;
+  padding: 13px;
+  border: none;
+  border-radius: 10px;
+  background: #c7f36b;
+  color: #173d2d;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.login-submit:hover {
+  background: #d7ff89;
+}
+
+.login-error {
+  margin-top: 12px;
+  color: #ffb5a9;
+  font-size: 14px;
+}
+
+.demo-credentials {
+  margin-top: 22px;
+  padding: 14px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.06);
+  font-size: 13px;
+}
+
+.demo-credentials p {
+  margin: 7px 0 0;
+  color: #d4e2d7;
+}
+
+@media (max-width: 480px) {
+  .login-card {
+    padding: 25px;
+  }
+}
+.logout-button {
+  padding: 8px 12px;
+  border: 1px solid #c7f36b;
+  border-radius: 8px;
+  background: transparent;
+  color: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.2s ease;
+}
+
+.logout-button:hover {
+  background: rgba(199, 243, 107, 0.15);
+}
+
+.profile {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+@media (max-width: 600px) {
+  .profile-info {
+    display: none;
+  }
+
+  .logout-button {
+    padding: 7px 9px;
+  }
+}

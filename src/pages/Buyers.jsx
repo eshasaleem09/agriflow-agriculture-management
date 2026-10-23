@@ -1,4 +1,14 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+
+import {
+  addBuyer,
+  updateBuyer,
+  deleteBuyer,
+} from "../features/buyers/buyersSlice.js";
+
+import { updateCrop } from "../features/crops/cropsSlice.js";
+
 import {
   Users,
   UserPlus,
@@ -7,24 +17,25 @@ import {
   ShoppingBag,
   Upload,
   X,
+  Pencil,
 } from "lucide-react";
 
-const CROPS_KEY = "agriflow-crops";
-const BUYERS_KEY = "agriflow-buyers";
+function getLocalDate() {
+  const now = new Date();
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
 
-function readStorage(key, fallback = []) {
-  try {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : fallback;
-  } catch {
-    return fallback;
-  }
+  return `${year}-${month}-${day}`;
 }
 
 function formatCNIC(value) {
   const digits = value.replace(/\D/g, "").slice(0, 13);
 
-  if (digits.length <= 5) return digits;
+  if (digits.length <= 5) {
+    return digits;
+  }
+
   if (digits.length <= 12) {
     return `${digits.slice(0, 5)}-${digits.slice(5)}`;
   }
@@ -33,57 +44,74 @@ function formatCNIC(value) {
 }
 
 function Buyers() {
-  const [crops, setCrops] = useState(() =>
-    readStorage(CROPS_KEY)
-  );
+  const dispatch = useDispatch();
 
-  const [buyers, setBuyers] = useState(() =>
-    readStorage(BUYERS_KEY)
-  );
+  const crops = useSelector((state) => state.crops);
+  const buyers = useSelector((state) => state.buyers);
+  const { user } = useSelector((state) => state.auth);
+
+  const isAdmin = user?.role === "Admin";
 
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);
+  const [editingId, setEditingId] = useState(null);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
 
-  const [form, setForm] = useState({
+  const emptyForm = {
     name: "",
     cnic: "",
     cropId: "",
     quantity: "",
-    date: new Date().toISOString().slice(0, 10),
+    date: getLocalDate(),
     photo: "",
     photoName: "",
-  });
+  };
 
-  useEffect(() => {
-    localStorage.setItem(BUYERS_KEY, JSON.stringify(buyers));
-  }, [buyers]);
-
-  useEffect(() => {
-    localStorage.setItem(CROPS_KEY, JSON.stringify(crops));
-  }, [crops]);
+  const [form, setForm] = useState(emptyForm);
 
   const filteredBuyers = buyers.filter((buyer) => {
     const query = search.toLowerCase();
+    const digits = search.replace(/\D/g, "");
 
     return (
-      buyer.name.toLowerCase().includes(query) ||
-      buyer.cnic.includes(query.replace(/\D/g, ""))
+      (buyer.name || "").toLowerCase().includes(query) ||
+      (buyer.cnic || "").replace(/\D/g, "").includes(digits)
     );
   });
 
-  function openForm() {
-    setCrops(readStorage(CROPS_KEY));
+  const totalQuantitySold = buyers.reduce(
+    (total, buyer) => total + Number(buyer.quantity || 0),
+    0
+  );
+
+  function openAddForm() {
+    setEditingId(null);
 
     setForm({
-      name: "",
-      cnic: "",
+      ...emptyForm,
       cropId: "",
-      quantity: "",
-      date: new Date().toISOString().slice(0, 10),
-      photo: "",
-      photoName: "",
+      date: getLocalDate(),
+    });
+
+    setError("");
+    setSuccess("");
+    setModalOpen(true);
+  }
+
+  function openEditForm(buyer) {
+    if (!isAdmin) return;
+
+    setEditingId(buyer.id);
+
+    setForm({
+      name: buyer.name || "",
+      cnic: buyer.cnic || "",
+      cropId: String(buyer.cropId),
+      quantity: String(buyer.quantity),
+      date: buyer.date || getLocalDate(),
+      photo: buyer.photo || "",
+      photoName: buyer.photoName || "",
     });
 
     setError("");
@@ -103,7 +131,7 @@ function Buyers() {
     }
 
     if (file.size > 1024 * 1024) {
-      setError("The photo must be smaller than 1 MB.");
+      setError("The photo must not exceed 1 MB.");
       event.target.value = "";
       return;
     }
@@ -133,32 +161,49 @@ function Buyers() {
     setError("");
     setSuccess("");
 
+    if (editingId !== null && !isAdmin) {
+      setError("Only an Admin can edit buyer records.");
+      return;
+    }
+
     const name = form.name.trim();
     const digits = form.cnic.replace(/\D/g, "");
     const quantity = Number(form.quantity);
-    const crop = crops.find(
-      (item) => String(item.id) === form.cropId
+    const selectedCrop = crops.find(
+      (crop) => String(crop.id) === form.cropId
     );
 
-    if (!/^[a-zA-Z\s]{3,}$/.test(name)) {
+    // Validate name: letters and spaces only, at least 3 letters
+    if (
+      !/^[a-zA-Z\s]+$/.test(name) ||
+      name.replace(/\s/g, "").length < 3
+    ) {
       setError(
         "Enter a name containing at least 3 letters and spaces only."
       );
       return;
     }
 
+    // Validate CNIC
     if (digits.length !== 13) {
       setError("CNIC must contain exactly 13 digits.");
       return;
     }
 
-    if (buyers.some((buyer) => buyer.cnic.replace(/\D/g, "") === digits)) {
+    // Prevent duplicate CNIC, except for the buyer being edited
+    const duplicate = buyers.some(
+      (buyer) =>
+        buyer.id !== editingId &&
+        (buyer.cnic || "").replace(/\D/g, "") === digits
+    );
+
+    if (duplicate) {
       setError("A buyer with this CNIC is already registered.");
       return;
     }
 
-    if (!crop) {
-      setError("Please select a crop.");
+    if (!selectedCrop) {
+      setError("Please select a valid crop.");
       return;
     }
 
@@ -167,87 +212,151 @@ function Buyers() {
       return;
     }
 
-    if (quantity > Number(crop.quantity)) {
-      setError(
-        `Only ${Number(crop.quantity).toLocaleString()} kg of ${crop.name} is available.`
-      );
-      return;
-    }
-
     if (!form.date) {
       setError("Please select a purchase date.");
       return;
     }
 
-    const updatedCrops = crops.map((item) =>
-      item.id === crop.id
-        ? {
-            ...item,
-            quantity: Number(item.quantity) - quantity,
-          }
-        : item
+    const existingBuyer = buyers.find(
+      (buyer) => buyer.id === editingId
     );
 
-    const newBuyer = {
-      id: Date.now(),
+    const oldCrop = existingBuyer
+      ? crops.find(
+          (crop) => String(crop.id) === String(existingBuyer.cropId)
+        )
+      : null;
+
+    // If editing a purchase for the same crop, include its previous
+    // quantity when calculating how much stock is available.
+    const availableQuantity =
+      existingBuyer && oldCrop?.id === selectedCrop.id
+        ? Number(selectedCrop.quantity) + Number(existingBuyer.quantity)
+        : Number(selectedCrop.quantity);
+
+    if (quantity > availableQuantity) {
+      setError(
+        `Only ${availableQuantity.toLocaleString()} kg of ${selectedCrop.name} is available for this purchase.`
+      );
+      return;
+    }
+
+    const buyerData = {
+      id: editingId ?? Date.now(),
       name,
       cnic: formatCNIC(digits),
-      cropId: crop.id,
-      cropName: crop.name,
+      cropId: selectedCrop.id,
+      cropName: selectedCrop.name,
       quantity,
       date: form.date,
       photo: form.photo,
-      createdAt: new Date().toISOString(),
+      photoName: form.photoName,
+      createdAt:
+        existingBuyer?.createdAt || new Date().toISOString(),
+      updatedAt: new Date().toISOString(),
     };
 
-    try {
-      localStorage.setItem(
-        CROPS_KEY,
-        JSON.stringify(updatedCrops)
+    if (existingBuyer) {
+      // Editing a purchase on the same crop adjusts only the
+      // net quantity difference.
+      if (oldCrop && String(oldCrop.id) === String(selectedCrop.id)) {
+        dispatch(
+          updateCrop({
+            ...oldCrop,
+            quantity:
+              Number(oldCrop.quantity) +
+              Number(existingBuyer.quantity) -
+              quantity,
+          })
+        );
+      } else {
+        // Restore the old crop stock first.
+        if (oldCrop) {
+          dispatch(
+            updateCrop({
+              ...oldCrop,
+              quantity:
+                Number(oldCrop.quantity) +
+                Number(existingBuyer.quantity),
+            })
+          );
+        }
+
+        // Deduct the new purchase from the selected crop.
+        dispatch(
+          updateCrop({
+            ...selectedCrop,
+            quantity:
+              Number(selectedCrop.quantity) - quantity,
+          })
+        );
+      }
+
+      dispatch(updateBuyer(buyerData));
+
+      setSuccess(`Buyer record updated for ${name}.`);
+    } else {
+      // Deduct stock for a new purchase.
+      dispatch(
+        updateCrop({
+          ...selectedCrop,
+          quantity:
+            Number(selectedCrop.quantity) - quantity,
+        })
       );
 
-      localStorage.setItem(
-        BUYERS_KEY,
-        JSON.stringify([...buyers, newBuyer])
-      );
+      dispatch(addBuyer(buyerData));
 
-      setCrops(updatedCrops);
-      setBuyers((current) => [...current, newBuyer]);
-
-      setModalOpen(false);
       setSuccess(
-        `Purchase recorded successfully for ${name}. ${quantity} kg of ${crop.name} deducted from stock.`
-      );
-    } catch {
-      setError(
-        "Unable to save the purchase. Your browser storage may be full."
+        `Purchase recorded for ${name}. ${quantity} kg of ${selectedCrop.name} deducted from stock.`
       );
     }
+
+    setModalOpen(false);
+    setForm(emptyForm);
+    setEditingId(null);
+    setError("");
   }
 
-  function deleteBuyer(buyer) {
+  function handleDeleteBuyer(buyer) {
+    if (!isAdmin) return;
+
     const confirmed = window.confirm(
-      `Delete the buyer record for ${buyer.name}? This will not reverse the recorded sale.`
+      `Delete ${buyer.name}'s purchase and return ${buyer.quantity} kg to the crop stock?`
     );
 
-    if (confirmed) {
-      setBuyers((current) =>
-        current.filter((item) => item.id !== buyer.id)
+    if (!confirmed) return;
+
+    const crop = crops.find(
+      (item) => String(item.id) === String(buyer.cropId)
+    );
+
+    // Restore the stock associated with the deleted purchase.
+    if (crop) {
+      dispatch(
+        updateCrop({
+          ...crop,
+          quantity:
+            Number(crop.quantity) + Number(buyer.quantity),
+        })
       );
     }
-  }
 
-  const totalQuantitySold = buyers.reduce(
-    (total, buyer) => total + Number(buyer.quantity),
-    0
-  );
+    dispatch(deleteBuyer(buyer.id));
+
+    setSuccess(
+      `Buyer record for ${buyer.name} deleted and stock adjusted.`
+    );
+  }
 
   return (
     <section className="buyers-page">
       <div className="buyers-heading">
         <div>
           <span className="buyers-eyebrow">FARM OPERATIONS</span>
+
           <h2>Buyer Management</h2>
+
           <p>
             Register buyers, record crop purchases, and track sales.
           </p>
@@ -256,7 +365,7 @@ function Buyers() {
         <button
           type="button"
           className="buyers-primary-button"
-          onClick={openForm}
+          onClick={openAddForm}
         >
           <UserPlus size={18} />
           Register Buyer
@@ -266,6 +375,7 @@ function Buyers() {
       {success && (
         <div className="buyers-success" role="status">
           {success}
+
           <button
             type="button"
             onClick={() => setSuccess("")}
@@ -279,6 +389,7 @@ function Buyers() {
       <div className="buyers-summary">
         <article className="panel buyers-summary-card">
           <Users size={23} />
+
           <div>
             <p>Registered Buyers</p>
             <h3>{buyers.length}</h3>
@@ -287,6 +398,7 @@ function Buyers() {
 
         <article className="panel buyers-summary-card">
           <ShoppingBag size={23} />
+
           <div>
             <p>Quantity Sold</p>
             <h3>{totalQuantitySold.toLocaleString()} kg</h3>
@@ -309,6 +421,7 @@ function Buyers() {
       <div className="buyers-list-heading">
         <div>
           <h3>Registered Buyers</h3>
+
           <p>
             Showing {filteredBuyers.length} of {buyers.length} records
           </p>
@@ -319,6 +432,7 @@ function Buyers() {
         <div className="panel buyers-empty">
           <Users size={35} />
           <h3>No buyers found</h3>
+
           <p>
             Register your first buyer or try a different search.
           </p>
@@ -345,14 +459,27 @@ function Buyers() {
                   <p>{buyer.cnic}</p>
                 </div>
 
-                <button
-                  type="button"
-                  className="buyer-delete-button"
-                  onClick={() => deleteBuyer(buyer)}
-                  aria-label={`Delete ${buyer.name}`}
-                >
-                  <Trash2 size={17} />
-                </button>
+                {isAdmin && (
+                  <div className="buyer-actions">
+                    <button
+                      type="button"
+                      className="buyer-edit-button"
+                      onClick={() => openEditForm(buyer)}
+                      aria-label={`Edit ${buyer.name}`}
+                    >
+                      <Pencil size={16} />
+                    </button>
+
+                    <button
+                      type="button"
+                      className="buyer-delete-button"
+                      onClick={() => handleDeleteBuyer(buyer)}
+                      aria-label={`Delete ${buyer.name}`}
+                    >
+                      <Trash2 size={17} />
+                    </button>
+                  </div>
+                )}
               </div>
 
               <div className="buyer-detail-row">
@@ -396,7 +523,12 @@ function Buyers() {
                 <span className="buyers-eyebrow">
                   CUSTOMER RECORDS
                 </span>
-                <h3 id="buyers-modal-title">Register a Buyer</h3>
+
+                <h3 id="buyers-modal-title">
+                  {editingId !== null
+                    ? "Edit Buyer"
+                    : "Register a Buyer"}
+                </h3>
               </div>
 
               <button
@@ -412,6 +544,7 @@ function Buyers() {
             <form onSubmit={handleSubmit} className="buyers-form">
               <label>
                 Full Name
+
                 <input
                   type="text"
                   value={form.name}
@@ -428,6 +561,7 @@ function Buyers() {
 
               <label>
                 CNIC
+
                 <input
                   type="text"
                   inputMode="numeric"
@@ -442,11 +576,13 @@ function Buyers() {
                   maxLength={15}
                   required
                 />
+
                 <small>Enter your 13-digit CNIC number.</small>
               </label>
 
               <label>
                 Buyer Photo (JPG or PNG, maximum 1 MB)
+
                 <input
                   type="file"
                   accept="image/jpeg,image/png"
@@ -457,7 +593,8 @@ function Buyers() {
               {form.photo && (
                 <div className="buyers-photo-preview">
                   <img src={form.photo} alt="Buyer preview" />
-                  <span>{form.photoName}</span>
+
+                  <span>{form.photoName || "Uploaded photo"}</span>
 
                   <button
                     type="button"
@@ -476,6 +613,7 @@ function Buyers() {
 
               <label>
                 Crop
+
                 <select
                   value={form.cropId}
                   onChange={(event) =>
@@ -494,7 +632,8 @@ function Buyers() {
                       value={String(crop.id)}
                       disabled={Number(crop.quantity) <= 0}
                     >
-                      {crop.name} — {Number(crop.quantity).toLocaleString()} kg available
+                      {crop.name} —{" "}
+                      {Number(crop.quantity).toLocaleString()} kg available
                     </option>
                   ))}
                 </select>
@@ -502,6 +641,7 @@ function Buyers() {
 
               <label>
                 Quantity (kg)
+
                 <input
                   type="number"
                   min="0.01"
@@ -520,6 +660,7 @@ function Buyers() {
 
               <label>
                 Purchase Date
+
                 <input
                   type="date"
                   value={form.date}
@@ -553,7 +694,9 @@ function Buyers() {
                   className="buyers-primary-button"
                 >
                   <Upload size={17} />
-                  Save Purchase
+                  {editingId !== null
+                    ? "Save Changes"
+                    : "Save Purchase"}
                 </button>
               </div>
             </form>

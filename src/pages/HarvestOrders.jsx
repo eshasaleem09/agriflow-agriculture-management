@@ -1,626 +1,716 @@
-import { useEffect, useMemo, useState } from "react";
+import { useMemo, useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import {
-  CalendarDays,
-  Wheat,
-  ShoppingBag,
-  PackageCheck,
-  Plus,
-  Trash2,
-  X,
-  Clock,
-  AlertTriangle,
-  CheckCircle2,
+CalendarDays,
+CheckCircle2,
+Clock,
+Plus,
+Trash2,
+Wheat,
+ShoppingCart,
+Package,
+X,
 } from "lucide-react";
 
-const CROPS_KEY = "agriflow-crops";
-const BUYERS_KEY = "agriflow-buyers";
-const HARVEST_KEY = "agriflow-harvest-schedule";
-const ORDERS_KEY = "agriflow-orders";
+import {
+  addHarvest,
+  deleteHarvest,
+  completeHarvest,
+  updateOrder,
+  selectHarvestSchedule,
+  selectOrders,
+} from "../features/harvest/harvestSlice.js";
 
-const initialSchedule = [
-  {
-    id: 1,
-    cropName: "Wheat",
-    field: "Field A",
-    plannedDate: "2026-10-18",
-    quantity: 1000,
-    status: "Planned",
-  },
-  {
-    id: 2,
-    cropName: "Rice",
-    field: "Field B",
-    plannedDate: "2026-10-20",
-    quantity: 1500,
-    status: "Planned",
-  },
-  {
-    id: 3,
-    cropName: "Corn",
-    field: "Field C",
-    plannedDate: "2026-10-12",
-    quantity: 800,
-    status: "Completed",
-  },
-];
+import {
+  createOrderWithStock,
+  deleteOrderWithStock,
+} from "../features/harvest/harvestThunks.js";
 
-const initialOrders = [
-  {
-    id: "ORD-1024",
-    customer: "Ahmed Khan",
-    crop: "Wheat",
-    quantity: 500,
-    status: "Delivered",
-  },
-  {
-    id: "ORD-1025",
-    customer: "Fatima Ali",
-    crop: "Rice",
-    quantity: 300,
-    status: "Pending",
-  },
-  {
-    id: "ORD-1026",
-    customer: "Usman Malik",
-    crop: "Corn",
-    quantity: 200,
-    status: "Processing",
-  },
-];
-
-function readStorage(key, fallback) {
-  try {
-    const saved = localStorage.getItem(key);
-    return saved ? JSON.parse(saved) : fallback;
-  } catch {
-    return fallback;
-  }
-}
-
-function getDaysRemaining(date) {
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-
-  const target = new Date(`${date}T00:00:00`);
-
-  return Math.ceil((target - today) / (1000 * 60 * 60 * 24));
-}
-
-function formatDate(date) {
-  return new Date(`${date}T00:00:00`).toLocaleDateString(
-    "en-PK",
-    {
-      day: "numeric",
-      month: "short",
-      year: "numeric",
-    }
-  );
-}
+import { updateCrop } from "../features/crops/cropsSlice.js";
 
 function HarvestOrders() {
-  const [crops, setCrops] = useState(() =>
-    readStorage(CROPS_KEY, [])
+const dispatch = useDispatch();
+
+const crops = useSelector((state) => state.crops);
+const buyers = useSelector((state) => state.buyers);
+const schedule = useSelector(selectHarvestSchedule);
+const orders = useSelector(selectOrders);
+
+const [showHarvestForm, setShowHarvestForm] = useState(false);
+const [showOrderForm, setShowOrderForm] = useState(false);
+
+const [harvestForm, setHarvestForm] = useState({
+cropName: "",
+field: "",
+plannedDate: "",
+quantity: "",
+});
+
+const [orderForm, setOrderForm] = useState({
+customer: "",
+crop: "",
+quantity: "",
+});
+
+const [message, setMessage] = useState("");
+const [error, setError] = useState("");
+
+const totalHarvest = useMemo(
+() =>
+schedule
+.filter((item) => item.status === "Completed")
+.reduce((total, item) => total + Number(item.quantity || 0), 0),
+[schedule]
+);
+
+const totalSold = useMemo(
+() =>
+buyers.reduce(
+(total, buyer) => total + Number(buyer.quantity || 0),
+0
+),
+[buyers]
+);
+
+const remainingStock = useMemo(
+() =>
+crops.reduce(
+(total, crop) => total + Number(crop.quantity || 0),
+0
+),
+[crops]
+);
+
+const totalOrders = orders.length;
+
+function handleHarvestSubmit(event) {
+event.preventDefault();
+setMessage("");
+setError("");
+
+const quantity = Number(harvestForm.quantity);
+
+if (
+  !harvestForm.cropName ||
+  !harvestForm.field.trim() ||
+  !harvestForm.plannedDate ||
+  !Number.isFinite(quantity) ||
+  quantity <= 0
+) {
+  setError("Please complete all harvest fields with valid values.");
+  return;
+}
+
+const selectedCrop = crops.find(
+  (crop) => crop.name === harvestForm.cropName
+);
+
+if (!selectedCrop) {
+  setError("The selected crop could not be found.");
+  return;
+}
+
+const harvestRecord = {
+  id: Date.now(),
+  cropName: harvestForm.cropName,
+  field: harvestForm.field.trim(),
+  plannedDate: harvestForm.plannedDate,
+  quantity,
+  status: "Planned",
+};
+
+dispatch(addHarvest(harvestRecord));
+setHarvestForm({
+  cropName: "",
+  field: "",
+  plannedDate: "",
+  quantity: "",
+});
+setShowHarvestForm(false);
+setMessage("Harvest schedule added successfully.");
+
+}
+
+function handleCompleteHarvest(item) {
+setMessage("");
+setError("");
+
+if (item.status === "Completed") {
+  setError("This harvest has already been completed.");
+  return;
+}
+
+const selectedCrop = crops.find(
+  (crop) => crop.name === item.cropName
+);
+
+if (!selectedCrop) {
+  setError("The related crop could not be found.");
+  return;
+}
+
+dispatch(completeHarvest(item.id));
+
+dispatch(
+  updateCrop({
+    ...selectedCrop,
+    quantity: Number(selectedCrop.quantity || 0) + Number(item.quantity),
+  })
+);
+
+setMessage(`${item.cropName} harvest marked as completed.`)
+
+}
+
+function handleOrderSubmit(event) {
+event.preventDefault();
+setMessage("");
+setError("");
+
+const quantity = Number(orderForm.quantity);
+
+if (
+  !orderForm.customer.trim() ||
+  !orderForm.crop ||
+  !Number.isFinite(quantity) ||
+  quantity <= 0
+) {
+  setError("Enter a customer, crop, and valid quantity.");
+  return;
+}
+
+const selectedCrop = crops.find(
+  (crop) => crop.name === orderForm.crop
+);
+
+if (!selectedCrop) {
+  setError("The selected crop could not be found.");
+  return;
+}
+
+if (quantity > Number(selectedCrop.quantity || 0)) {
+  setError(
+    `Insufficient ${selectedCrop.name} stock. Available: ${selectedCrop.quantity}.`
+  );
+  return;
+}
+
+const order = {
+  id: `ORD-${Date.now()}`,
+  customer: orderForm.customer.trim(),
+  crop: orderForm.crop,
+  quantity,
+  status: "Pending",
+  createdAt: new Date().toISOString(),
+};
+
+const result = dispatch(createOrderWithStock(order));
+
+if (!result.ok) {
+  setError(result.message);
+  return;
+}
+
+setOrderForm({
+  customer: "",
+  crop: "",
+  quantity: "",
+});
+
+setShowOrderForm(false);
+setMessage(result.message);
+
+}
+
+function handleOrderStatusChange(order, status) {
+dispatch(updateOrder({ ...order, status }));
+setMessage(`${order.id} status updated to ${status}.`);
+setError("");
+}
+function handleDeleteOrder(order) {
+  const confirmed = window.confirm(
+    `Delete ${order.id}? Any explicitly allocated crop stock will be restored.`
   );
 
-  const [buyers, setBuyers] = useState(() =>
-    readStorage(BUYERS_KEY, [])
-  );
+  if (!confirmed) return;
 
-  const [schedule, setSchedule] = useState(() =>
-    readStorage(HARVEST_KEY, initialSchedule)
-  );
+  const result = dispatch(deleteOrderWithStock(order.id));
 
-  const [orders, setOrders] = useState(() =>
-    readStorage(ORDERS_KEY, initialOrders)
-  );
-
-  const [modalOpen, setModalOpen] = useState(false);
-  const [error, setError] = useState("");
-
-  const [form, setForm] = useState({
-    cropName: "",
-    field: "",
-    plannedDate: "",
-    quantity: "",
-  });
-
-  useEffect(() => {
-    localStorage.setItem(HARVEST_KEY, JSON.stringify(schedule));
-  }, [schedule]);
-
-  useEffect(() => {
-    localStorage.setItem(ORDERS_KEY, JSON.stringify(orders));
-  }, [orders]);
-
-  const totalHarvest = schedule
-    .filter((item) => item.status === "Completed")
-    .reduce((sum, item) => sum + Number(item.quantity), 0);
-
-  const totalSold = buyers.reduce(
-    (sum, buyer) => sum + Number(buyer.quantity || 0),
-    0
-  );
-
-  const totalOrders = orders.length;
-
-  const remainingStock = crops.reduce(
-    (sum, crop) => sum + Number(crop.quantity || 0),
-    0
-  );
-
-  const upcoming = useMemo(
-    () =>
-      [...schedule].sort(
-        (a, b) =>
-          new Date(a.plannedDate) - new Date(b.plannedDate)
-      ),
-    [schedule]
-  );
-
-  function openModal() {
-    const freshCrops = readStorage(CROPS_KEY, []);
-    setCrops(freshCrops);
-
-    setForm({
-      cropName: freshCrops[0]?.name || "",
-      field: freshCrops[0]?.field || "",
-      plannedDate: "",
-      quantity: "",
-    });
-
-    setError("");
-    setModalOpen(true);
+  if (!result.ok) {
+    setError(result.message);
+    return;
   }
 
-  function handleCropChange(name) {
-    const crop = crops.find((item) => item.name === name);
+  setMessage(result.message);
+  setError("");
+}
 
-    setForm((current) => ({
-      ...current,
-      cropName: name,
-      field: crop?.field || "",
-    }));
-  }
 
-  function handleSubmit(event) {
-    event.preventDefault();
+function handleDeleteHarvest(item) {
+const confirmed = window.confirm(
+`Delete the ${item.cropName} harvest schedule?`
+);
 
-    const crop = crops.find(
-      (item) => item.name === form.cropName
-    );
+if (!confirmed) return;
 
-    const quantity = Number(form.quantity);
+dispatch(deleteHarvest(item.id));
+setMessage("Harvest schedule deleted.");
+setError("");
 
-    if (!crop) {
-      setError("Please select a valid crop.");
-      return;
-    }
+}
 
-    if (!form.field.trim() || !form.plannedDate) {
-      setError("Please complete all required fields.");
-      return;
-    }
+return ( <main className="page-content harvest-page"> <div className="page-heading"> <div> <p className="eyebrow">FARM OPERATIONS</p> <h1>Harvest & Orders</h1> <p className="page-description">
+Schedule harvests, manage customer orders, and monitor available
+crop stock. </p> </div> </div>
 
-    if (!Number.isFinite(quantity) || quantity <= 0) {
-      setError("Enter a quantity greater than zero.");
-      return;
-    }
+  {message && (
+    <div className="harvest-notice success" role="status">
+      <CheckCircle2 size={18} />
+      <span>{message}</span>
+      <button
+        type="button"
+        aria-label="Dismiss success message"
+        onClick={() => setMessage("")}
+      >
+        <X size={16} />
+      </button>
+    </div>
+  )}
 
-    const entry = {
-      id: Date.now(),
-      cropName: crop.name,
-      field: form.field.trim(),
-      plannedDate: form.plannedDate,
-      quantity,
-      status: "Planned",
-    };
+  {error && (
+    <div className="harvest-notice error" role="alert">
+      <span>{error}</span>
+      <button
+        type="button"
+        aria-label="Dismiss error message"
+        onClick={() => setError("")}
+      >
+        <X size={16} />
+      </button>
+    </div>
+  )}
 
-    setSchedule((current) => [...current, entry]);
-    setModalOpen(false);
-    setError("");
-  }
+  <section className="harvest-summary-grid">
+    <article className="harvest-summary-card">
+      <div className="harvest-summary-icon">
+        <Wheat size={22} />
+      </div>
+      <p>Completed Harvest</p>
+      <h2>{totalHarvest.toLocaleString()} kg</h2>
+      <span>Recorded completed harvests</span>
+    </article>
 
-  function deleteSchedule(id) {
-    if (
-      window.confirm(
-        "Are you sure you want to delete this harvest schedule?"
-      )
-    ) {
-      setSchedule((current) =>
-        current.filter((item) => item.id !== id)
-      );
-    }
-  }
+    <article className="harvest-summary-card">
+      <div className="harvest-summary-icon">
+        <ShoppingCart size={22} />
+      </div>
+      <p>Total Orders</p>
+      <h2>{totalOrders}</h2>
+      <span>Orders in the system</span>
+    </article>
 
-  function completeHarvest(item) {
-    const crop = crops.find(
-      (record) => record.name === item.cropName
-    );
+    <article className="harvest-summary-card">
+      <div className="harvest-summary-icon">
+        <Package size={22} />
+      </div>
+      <p>Available Crop Stock</p>
+      <h2>{remainingStock.toLocaleString()} kg</h2>
+      <span>Current quantity across crops</span>
+    </article>
 
-    if (!crop) {
-      window.alert(
-        "This crop no longer exists in Crop Management."
-      );
-      return;
-    }
+    <article className="harvest-summary-card">
+      <div className="harvest-summary-icon">
+        <CheckCircle2 size={22} />
+      </div>
+      <p>Buyer Purchases</p>
+      <h2>{totalSold.toLocaleString()} kg</h2>
+      <span>Quantities recorded by Buyers</span>
+    </article>
+  </section>
 
-    const alreadyCompleted = item.status === "Completed";
+  <section className="harvest-panel">
+    <div className="harvest-panel-heading">
+      <div>
+        <h2>Harvest Schedule</h2>
+        <p>Plan harvests and record completed farm work.</p>
+      </div>
 
-    if (alreadyCompleted) return;
+      <button
+        type="button"
+        className="harvest-primary-button"
+        onClick={() => {
+          setShowHarvestForm((current) => !current);
+          setError("");
+        }}
+      >
+        <Plus size={17} />
+        Schedule Harvest
+      </button>
+    </div>
 
-    const updatedCrops = crops.map((record) =>
-      record.id === crop.id
-        ? {
-            ...record,
-            quantity: Number(record.quantity) + Number(item.quantity),
-          }
-        : record
-    );
+    {showHarvestForm && (
+      <form
+        className="harvest-form"
+        onSubmit={handleHarvestSubmit}
+      >
+        <label>
+          Crop
+          <select
+            value={harvestForm.cropName}
+            onChange={(event) =>
+              setHarvestForm({
+                ...harvestForm,
+                cropName: event.target.value,
+              })
+            }
+            required
+          >
+            <option value="">Select crop</option>
+            {crops.map((crop) => (
+              <option key={crop.id} value={crop.name}>
+                {crop.name}
+              </option>
+            ))}
+          </select>
+        </label>
 
-    const updatedSchedule = schedule.map((record) =>
-      record.id === item.id
-        ? { ...record, status: "Completed" }
-        : record
-    );
+        <label>
+          Field
+          <input
+            value={harvestForm.field}
+            onChange={(event) =>
+              setHarvestForm({
+                ...harvestForm,
+                field: event.target.value,
+              })
+            }
+            placeholder="e.g. Field A"
+            required
+          />
+        </label>
 
-    localStorage.setItem(
-      CROPS_KEY,
-      JSON.stringify(updatedCrops)
-    );
+        <label>
+          Planned Date
+          <input
+            type="date"
+            value={harvestForm.plannedDate}
+            onChange={(event) =>
+              setHarvestForm({
+                ...harvestForm,
+                plannedDate: event.target.value,
+              })
+            }
+            required
+          />
+        </label>
 
-    setCrops(updatedCrops);
-    setSchedule(updatedSchedule);
-  }
+        <label>
+          Quantity (kg)
+          <input
+            type="number"
+            min="1"
+            step="any"
+            value={harvestForm.quantity}
+            onChange={(event) =>
+              setHarvestForm({
+                ...harvestForm,
+                quantity: event.target.value,
+              })
+            }
+            placeholder="e.g. 500"
+            required
+          />
+        </label>
 
-  return (
-    <section className="harvest-page">
-      <div className="harvest-heading">
-        <div>
-          <span className="harvest-eyebrow">FARM OPERATIONS</span>
-          <h2>Harvest & Orders</h2>
-          <p>
-            Track harvest schedules, completed harvests, crop sales,
-            and available stock.
-          </p>
+        <div className="harvest-form-actions">
+          <button type="submit" className="harvest-primary-button">
+            Save Schedule
+          </button>
+          <button
+            type="button"
+            className="harvest-secondary-button"
+            onClick={() => setShowHarvestForm(false)}
+          >
+            Cancel
+          </button>
         </div>
+      </form>
+    )}
 
-        <button
-          type="button"
-          className="harvest-primary-button"
-          onClick={openModal}
-        >
-          <Plus size={18} />
-          Schedule Harvest
-        </button>
-      </div>
-
-      <div className="harvest-summary-grid">
-        <article className="panel harvest-summary-card">
-          <span><Wheat size={22} /></span>
-          <div>
-            <p>Total Harvested</p>
-            <h3>{totalHarvest.toLocaleString()} kg</h3>
-          </div>
-        </article>
-
-        <article className="panel harvest-summary-card">
-          <span><ShoppingBag size={22} /></span>
-          <div>
-            <p>Orders Received</p>
-            <h3>{totalOrders}</h3>
-          </div>
-        </article>
-
-        <article className="panel harvest-summary-card">
-          <span><PackageCheck size={22} /></span>
-          <div>
-            <p>Quantity Sold</p>
-            <h3>{totalSold.toLocaleString()} kg</h3>
-          </div>
-        </article>
-
-        <article className="panel harvest-summary-card">
-          <span><Wheat size={22} /></span>
-          <div>
-            <p>Available Stock</p>
-            <h3>{remainingStock.toLocaleString()} kg</h3>
-          </div>
-        </article>
-      </div>
-
-      <div className="harvest-section-heading">
-        <div>
-          <h3>Harvest & Cutting Schedule</h3>
-          <p>Monitor planned dates and completed farm activities.</p>
-        </div>
-      </div>
-
-      <div className="harvest-schedule-list">
-        {upcoming.map((item) => {
-          const days = getDaysRemaining(item.plannedDate);
-          const completed = item.status === "Completed";
-
-          let label = "";
-
-          if (completed) {
-            label = "Completed";
-          } else if (days < 0) {
-            label = `${Math.abs(days)} day(s) overdue`;
-          } else if (days === 0) {
-            label = "Due today";
-          } else {
-            label = `${days} day(s) remaining`;
-          }
-
-          const urgency = completed
-            ? "harvest-completed"
-            : days < 0
-              ? "harvest-overdue"
-              : days <= 3
-                ? "harvest-due"
-                : "harvest-upcoming";
-
-          return (
-            <article
-              className={`panel harvest-schedule-card ${urgency}`}
-              key={item.id}
-            >
-              <div className="harvest-date-icon">
-                {completed ? (
-                  <CheckCircle2 size={23} />
-                ) : days < 0 ? (
-                  <AlertTriangle size={23} />
-                ) : (
-                  <CalendarDays size={23} />
-                )}
-              </div>
-
-              <div className="harvest-schedule-details">
-                <h4>{item.cropName}</h4>
-                <p>{item.field}</p>
-                <span>
-                  <CalendarDays size={14} />
-                  {formatDate(item.plannedDate)}
+    <div className="harvest-table-wrapper">
+      <table className="harvest-table">
+        <thead>
+          <tr>
+            <th>Crop</th>
+            <th>Field</th>
+            <th>Planned Date</th>
+            <th>Quantity</th>
+            <th>Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {schedule.map((item) => (
+            <tr key={item.id}>
+              <td>{item.cropName}</td>
+              <td>{item.field}</td>
+              <td>{item.plannedDate}</td>
+              <td>{Number(item.quantity).toLocaleString()} kg</td>
+              <td>
+                <span
+                  className={`harvest-status ${
+                    item.status === "Completed"
+                      ? "completed"
+                      : "planned"
+                  }`}
+                >
+                  {item.status}
                 </span>
-              </div>
+              </td>
+              <td>
+                <div className="harvest-row-actions">
+                  {item.status !== "Completed" && (
+                    <button
+                      type="button"
+                      className="harvest-icon-button"
+                      title="Mark completed"
+                      aria-label={`Complete ${item.cropName} harvest`}
+                      onClick={() => handleCompleteHarvest(item)}
+                    >
+                      <CheckCircle2 size={17} />
+                    </button>
+                  )}
 
-              <div className="harvest-schedule-quantity">
-                <strong>
-                  {Number(item.quantity).toLocaleString()} kg
-                </strong>
-                <span className={`harvest-status ${urgency}`}>
-                  {label}
-                </span>
-              </div>
-
-              <div className="harvest-card-actions">
-                {!completed && (
                   <button
                     type="button"
-                    className="harvest-complete-button"
-                    onClick={() => completeHarvest(item)}
+                    className="harvest-icon-button danger"
+                    title="Delete schedule"
+                    aria-label={`Delete ${item.cropName} harvest schedule`}
+                    onClick={() => handleDeleteHarvest(item)}
                   >
-                    Mark harvested
+                    <Trash2 size={17} />
                   </button>
-                )}
+                </div>
+              </td>
+            </tr>
+          ))}
 
+          {schedule.length === 0 && (
+            <tr>
+              <td colSpan="6" className="harvest-empty">
+                No harvest schedules yet. Add your first schedule above.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </section>
+
+  <section className="harvest-panel">
+    <div className="harvest-panel-heading">
+      <div>
+        <h2>Customer Orders</h2>
+        <p>Manage orders and keep track of their delivery status.</p>
+      </div>
+
+      <button
+        type="button"
+        className="harvest-primary-button"
+        onClick={() => {
+          setShowOrderForm((current) => !current);
+          setError("");
+        }}
+      >
+        <Plus size={17} />
+        Create Order
+      </button>
+    </div>
+
+    {showOrderForm && (
+      <form className="harvest-form" onSubmit={handleOrderSubmit}>
+        <label>
+          Customer Name
+          <input
+            value={orderForm.customer}
+            onChange={(event) =>
+              setOrderForm({
+                ...orderForm,
+                customer: event.target.value,
+              })
+            }
+            placeholder="Enter customer name"
+            required
+          />
+        </label>
+
+        <label>
+          Crop
+          <select
+            value={orderForm.crop}
+            onChange={(event) =>
+              setOrderForm({
+                ...orderForm,
+                crop: event.target.value,
+              })
+            }
+            required
+          >
+            <option value="">Select crop</option>
+            {crops.map((crop) => (
+              <option key={crop.id} value={crop.name}>
+                {crop.name} — {crop.quantity} kg available
+              </option>
+            ))}
+          </select>
+        </label>
+
+        <label>
+          Quantity (kg)
+          <input
+            type="number"
+            min="1"
+            step="any"
+            value={orderForm.quantity}
+            onChange={(event) =>
+              setOrderForm({
+                ...orderForm,
+                quantity: event.target.value,
+              })
+            }
+            placeholder="Enter quantity"
+            required
+          />
+        </label>
+
+        <div className="harvest-form-actions">
+          <button type="submit" className="harvest-primary-button">
+            Save Order
+          </button>
+          <button
+            type="button"
+            className="harvest-secondary-button"
+            onClick={() => setShowOrderForm(false)}
+          >
+            Cancel
+          </button>
+        </div>
+      </form>
+    )}
+
+    <div className="harvest-table-wrapper">
+      <table className="harvest-table">
+        <thead>
+          <tr>
+            <th>Order ID</th>
+            <th>Customer</th>
+            <th>Crop</th>
+            <th>Quantity</th>
+            <th>Status</th>
+            <th>Update Status</th>
+            <th>Actions</th>
+          </tr>
+        </thead>
+        <tbody>
+          {orders.map((order) => (
+            <tr key={order.id}>
+              <td>{order.id}</td>
+              <td>{order.customer}</td>
+              <td>{order.crop}</td>
+              <td>{Number(order.quantity).toLocaleString()} kg</td>
+              <td>
+                <span
+                  className={`harvest-status ${String(
+                    order.status
+                  ).toLowerCase()}`}
+                >
+                  {order.status}
+                </span>
+              </td>
+              <td>
+                <select
+                  className="harvest-status-select"
+                  value={order.status}
+                  onChange={(event) =>
+                    handleOrderStatusChange(order, event.target.value)
+                  }
+                  aria-label={`Update status for ${order.id}`}
+                >
+                  <option value="Pending">Pending</option>
+                  <option value="Processing">Processing</option>
+                  <option value="Delivered">Delivered</option>
+                </select>
+              </td>
+              <td>
                 <button
                   type="button"
-                  className="harvest-delete-button"
-                  onClick={() => deleteSchedule(item.id)}
-                  aria-label={`Delete ${item.cropName} schedule`}
+                  className="harvest-icon-button danger"
+                  title="Delete order"
+                  aria-label={`Delete order ${order.id}`}
+                  onClick={() => handleDeleteOrder(order)}
                 >
                   <Trash2 size={17} />
                 </button>
-              </div>
-            </article>
-          );
-        })}
-      </div>
-
-      <div className="harvest-section-heading">
-        <div>
-          <h3>Customer Orders</h3>
-          <p>Overview of existing customer orders and buyer purchases.</p>
-        </div>
-      </div>
-
-      <div className="panel harvest-orders-table-wrapper">
-        <table className="harvest-orders-table">
-          <thead>
-            <tr>
-              <th>Order ID</th>
-              <th>Customer</th>
-              <th>Crop</th>
-              <th>Quantity</th>
-              <th>Status</th>
+              </td>
             </tr>
-          </thead>
+          ))}
 
-          <tbody>
-            {orders.map((order) => (
-              <tr key={order.id}>
-                <td>{order.id}</td>
-                <td>{order.customer}</td>
-                <td>{order.crop}</td>
-                <td>{Number(order.quantity).toLocaleString()} kg</td>
-                <td>
-                  <span
-                    className={`harvest-order-status ${order.status.toLowerCase()}`}
-                  >
-                    {order.status}
-                  </span>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </div>
-
-      <div className="harvest-section-heading">
-        <div>
-          <h3>Buyer Purchases</h3>
-          <p>Sales recorded through the Buyers page.</p>
-        </div>
-      </div>
-
-      <div className="panel harvest-orders-table-wrapper">
-        <table className="harvest-orders-table">
-          <thead>
+          {orders.length === 0 && (
             <tr>
-              <th>Buyer</th>
-              <th>Crop</th>
-              <th>Quantity Sold</th>
-              <th>Purchase Date</th>
+              <td colSpan="7" className="harvest-empty">
+                No orders yet. Create your first customer order above.
+              </td>
             </tr>
-          </thead>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </section>
 
-          <tbody>
-            {buyers.length === 0 ? (
-              <tr>
-                <td colSpan="4">No buyer purchases recorded yet.</td>
-              </tr>
-            ) : (
-              buyers.map((buyer) => (
-                <tr key={buyer.id}>
-                  <td>{buyer.name}</td>
-                  <td>{buyer.cropName}</td>
-                  <td>{Number(buyer.quantity).toLocaleString()} kg</td>
-                  <td>{buyer.date}</td>
-                </tr>
-              ))
-            )}
-          </tbody>
-        </table>
+  <section className="harvest-panel">
+    <div className="harvest-panel-heading">
+      <div>
+        <h2>Buyer Purchase Records</h2>
+        <p>Purchases entered through the Buyers page.</p>
       </div>
+      <Clock size={21} />
+    </div>
 
-      {modalOpen && (
-        <div
-          className="harvest-modal-backdrop"
-          onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
-              setModalOpen(false);
-            }
-          }}
-        >
-          <section
-            className="harvest-modal"
-            role="dialog"
-            aria-modal="true"
-            aria-labelledby="harvest-modal-title"
-          >
-            <div className="harvest-modal-heading">
-              <div>
-                <span className="harvest-eyebrow">FARM PLANNING</span>
-                <h3 id="harvest-modal-title">Schedule a Harvest</h3>
-              </div>
+    <div className="harvest-table-wrapper">
+      <table className="harvest-table">
+        <thead>
+          <tr>
+            <th>Buyer</th>
+            <th>Crop</th>
+            <th>Quantity</th>
+            <th>Purchase Date</th>
+          </tr>
+        </thead>
+        <tbody>
+          {buyers.map((buyer) => (
+            <tr key={buyer.id}>
+              <td>{buyer.name}</td>
+              <td>{buyer.cropName}</td>
+              <td>{Number(buyer.quantity).toLocaleString()} kg</td>
+              <td>{buyer.purchaseDate || "—"}</td>
+            </tr>
+          ))}
 
-              <button
-                type="button"
-                className="harvest-close-button"
-                onClick={() => setModalOpen(false)}
-                aria-label="Close form"
-              >
-                <X size={21} />
-              </button>
-            </div>
+          {buyers.length === 0 && (
+            <tr>
+              <td colSpan="4" className="harvest-empty">
+                Buyer purchase records will appear here when added from
+                the Buyers page.
+              </td>
+            </tr>
+          )}
+        </tbody>
+      </table>
+    </div>
+  </section>
+</main>
 
-            <form
-              className="harvest-form"
-              onSubmit={handleSubmit}
-            >
-              <label>
-                Crop
-                <select
-                  value={form.cropName}
-                  onChange={(event) =>
-                    handleCropChange(event.target.value)
-                  }
-                  required
-                >
-                  <option value="">Select crop</option>
-                  {crops.map((crop) => (
-                    <option key={crop.id} value={crop.name}>
-                      {crop.name}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <label>
-                Field name
-                <input
-                  value={form.field}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      field: event.target.value,
-                    })
-                  }
-                  required
-                />
-              </label>
-
-              <label>
-                Planned cutting date
-                <input
-                  type="date"
-                  value={form.plannedDate}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      plannedDate: event.target.value,
-                    })
-                  }
-                  required
-                />
-              </label>
-
-              <label>
-                Expected harvest quantity (kg)
-                <input
-                  type="number"
-                  min="0.01"
-                  step="any"
-                  value={form.quantity}
-                  onChange={(event) =>
-                    setForm({
-                      ...form,
-                      quantity: event.target.value,
-                    })
-                  }
-                  required
-                />
-              </label>
-
-              {error && (
-                <p className="harvest-form-error" role="alert">
-                  {error}
-                </p>
-              )}
-
-              <div className="harvest-form-actions">
-                <button
-                  type="button"
-                  className="harvest-cancel-button"
-                  onClick={() => setModalOpen(false)}
-                >
-                  Cancel
-                </button>
-
-                <button
-                  type="submit"
-                  className="harvest-primary-button"
-                >
-                  Save Schedule
-                </button>
-              </div>
-            </form>
-          </section>
-        </div>
-      )}
-    </section>
-  );
+);
 }
 
 export default HarvestOrders;

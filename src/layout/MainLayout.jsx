@@ -1,5 +1,6 @@
-
 import { useState } from "react";
+import { useDispatch, useSelector } from "react-redux";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 
 import {
   LayoutDashboard,
@@ -15,10 +16,12 @@ import {
   Users,
   CalendarDays,
   X,
+  ClipboardList,
+  Wallet,
+  FileText,
 } from "lucide-react";
 
-import { NavLink, Outlet } from "react-router-dom";
-
+import { logout } from "../features/auth/authSlice.js";
 const menuItems = [
   {
     label: "Dashboard",
@@ -60,18 +63,48 @@ const menuItems = [
     path: "/harvest-orders",
     icon: CalendarDays,
   },
+  {
+    label: "Farm Tasks",
+    path: "/tasks",
+    icon: ClipboardList,
+  },
+  {
+    label: "Inventory",
+    path: "/inventory",
+    icon: Package,
+  },
+  {
+    label: "Expenses & Profit/Loss",
+    path: "/expenses",
+    icon: Wallet,
+  },
+  {
+  label: "Reports & Activity Log",
+  path: "/reports",
+  icon: FileText,
+},
 ];
 
 function MainLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
-  const closeSidebar = () => {
+  const dispatch = useDispatch();
+  const navigate = useNavigate();
+
+  const { user } = useSelector((state) => state.auth);
+
+  function handleLogout() {
+    dispatch(logout());
+    navigate("/login", { replace: true });
+  }
+
+  function closeSidebar() {
     setIsSidebarOpen(false);
-  };
+  }
 
   return (
     <div className="app-container">
-      {/* Mobile overlay */}
+      {/* Mobile sidebar overlay */}
       {isSidebarOpen && (
         <button
           type="button"
@@ -83,7 +116,9 @@ function MainLayout() {
 
       {/* Sidebar */}
       <aside
-        className={`sidebar ${isSidebarOpen ? "sidebar-open" : ""}`}
+        className={`sidebar ${
+          isSidebarOpen ? "sidebar-open" : ""
+        }`}
       >
         <div className="sidebar-logo">
           <div className="logo-icon">
@@ -105,7 +140,11 @@ function MainLayout() {
           </button>
         </div>
 
-        <nav className="sidebar-menu" aria-label="Main navigation">
+        {/* Navigation links */}
+        <nav
+          className="sidebar-menu"
+          aria-label="Main navigation"
+        >
           <p className="menu-heading">MAIN MENU</p>
 
           {menuItems.map((item) => {
@@ -122,13 +161,13 @@ function MainLayout() {
                 }
               >
                 <Icon size={20} />
-
                 <span>{item.label}</span>
               </NavLink>
             );
           })}
         </nav>
 
+        {/* Sidebar footer */}
         <div className="sidebar-footer">
           <div className="sidebar-footer-icon">
             <Sprout size={20} />
@@ -149,7 +188,9 @@ function MainLayout() {
             <button
               type="button"
               className="mobile-menu"
-              aria-label={isSidebarOpen ? "Close menu" : "Open menu"}
+              aria-label={
+                isSidebarOpen ? "Close menu" : "Open menu"
+              }
               aria-expanded={isSidebarOpen}
               onClick={() =>
                 setIsSidebarOpen((open) => !open)
@@ -191,18 +232,29 @@ function MainLayout() {
               <span className="notification-dot" />
             </button>
 
+            {/* User profile */}
             <div className="profile">
-              <div className="profile-avatar">AF</div>
+              <div className="profile-avatar">
+                {user?.name?.charAt(0) || "A"}
+              </div>
 
               <div className="profile-info">
-                <p>Farm Manager</p>
-                <span>Administrator</span>
+                <p>{user?.name || "Farm User"}</p>
+                <span>{user?.role || "User"}</span>
               </div>
+
+              <button
+                type="button"
+                className="logout-button"
+                onClick={handleLogout}
+              >
+                Logout
+              </button>
             </div>
           </div>
         </header>
 
-        {/* Current page */}
+        {/* Active page renders here */}
         <div className="dashboard-content">
           <Outlet />
         </div>

@@ -1,527 +1,371 @@
-
-import { useEffect, useCallback, useState } from "react";
+import { useEffect } from "react";
+import { useDispatch, useSelector } from "react-redux";
 import {
-  CloudSun,
-  Wind,
-  Droplets,
-  CloudRain,
-  RefreshCw,
-  AlertCircle,
-  Sun,
   Cloud,
-  CheckCircle2,
+  CloudFog,
+  CloudLightning,
+  CloudRain,
+  CloudSun,
+  Droplets,
+  RefreshCw,
+  Sun,
+  Thermometer,
+  Wind,
+  AlertCircle,
+  Snowflake,
 } from "lucide-react";
 
-const WEATHER_API = "https://api.open-meteo.com/v1/forecast";
+import { fetchWeather } from "../features/weather/weatherSlice.js";
 
-const DEFAULT_LOCATION = {
-  latitude: 31.5204,
-  longitude: 74.3587,
-  name: "Lahore, Pakistan",
-};
+const REFRESH_INTERVAL = 15 * 60 * 1000;
 
 function getWeatherDescription(code) {
-  if (code === 0) return "Clear sky";
-  if ([1, 2].includes(code)) return "Mainly clear / partly cloudy";
-  if (code === 3) return "Overcast";
-  if ([45, 48].includes(code)) return "Foggy";
-  if ([51, 53, 55].includes(code)) return "Drizzle";
-  if ([56, 57].includes(code)) return "Freezing drizzle";
-  if ([61, 63, 65].includes(code)) return "Rain";
-  if ([66, 67].includes(code)) return "Freezing rain";
-  if ([71, 73, 75, 77].includes(code)) return "Snow";
-  if ([80, 81, 82].includes(code)) return "Rain showers";
-  if ([85, 86].includes(code)) return "Snow showers";
-  if ([95, 96, 99].includes(code)) return "Thunderstorm";
-  return "Weather conditions unavailable";
+  const descriptions = {
+    0: "Clear Sky",
+    1: "Mainly Clear",
+    2: "Partly Cloudy",
+    3: "Overcast",
+    45: "Foggy",
+    48: "Depositing Rime Fog",
+    51: "Light Drizzle",
+    53: "Moderate Drizzle",
+    55: "Dense Drizzle",
+    56: "Freezing Drizzle",
+    57: "Heavy Freezing Drizzle",
+    61: "Light Rain",
+    63: "Moderate Rain",
+    65: "Heavy Rain",
+    66: "Freezing Rain",
+    67: "Heavy Freezing Rain",
+    71: "Light Snow",
+    73: "Moderate Snow",
+    75: "Heavy Snow",
+    77: "Snow Grains",
+    80: "Light Rain Showers",
+    81: "Moderate Rain Showers",
+    82: "Heavy Rain Showers",
+    85: "Snow Showers",
+    86: "Heavy Snow Showers",
+    95: "Thunderstorm",
+    96: "Thunderstorm with Hail",
+    99: "Severe Thunderstorm with Hail",
+  };
+
+  return descriptions[code] ?? "Weather Conditions";
 }
 
 function getWeatherIcon(code) {
   if (code === 0) return Sun;
-  if ([1, 2, 3].includes(code)) return CloudSun;
-  if ([45, 48].includes(code)) return Cloud;
-  if (code >= 51 && code <= 99) return CloudRain;
+
+  if (code === 1 || code === 2) return CloudSun;
+
+  if (code === 3) return Cloud;
+
+  if (code === 45 || code === 48) return CloudFog;
+
+  if (code >= 51 && code <= 67) return CloudRain;
+
+  if (code >= 71 && code <= 77) return Snowflake;
+
+  if (code >= 80 && code <= 82) return CloudRain;
+
+  if (code >= 85 && code <= 86) return Snowflake;
+
+  if (code >= 95) return CloudLightning;
+
   return CloudSun;
 }
 
-function getHumidityStatus(humidity) {
-  if (humidity < 30) return "Low";
-  if (humidity <= 70) return "Optimal";
-  return "High";
-}
-
-function getHumidityAdvice(humidity) {
-  if (humidity < 30) {
-    return {
-      title: "Low Humidity Alert",
-      message:
-        "Air humidity is low. Monitor soil moisture and check crops for signs of water stress.",
-      level: "low",
-    };
-  }
-
-  if (humidity > 70) {
-    return {
-      title: "High Humidity Alert",
-      message:
-        "High humidity may encourage fungal diseases. Monitor crops and ensure good field ventilation.",
-      level: "high",
-    };
-  }
-
-  return {
-    title: "Humidity Conditions Optimal",
-    message:
-      "Humidity is within the dashboard's preferred range. Continue monitoring your crops.",
-    level: "optimal",
-  };
+function formatForecastDate(dateString) {
+  return new Date(`${dateString}T12:00:00+05:00`).toLocaleDateString(
+    "en-PK",
+    {
+      weekday: "short",
+      day: "numeric",
+      month: "short",
+      timeZone: "Asia/Karachi",
+    }
+  );
 }
 
 function Weather() {
-  const [weather, setWeather] = useState(null);
-  const [forecast, setForecast] = useState([]);
-  const [locationName, setLocationName] = useState(
-    DEFAULT_LOCATION.name
+  const dispatch = useDispatch();
+
+  const { data, status, error } = useSelector(
+    (state) => state.weather
   );
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
-  const [lastUpdated, setLastUpdated] = useState(null);
-  const [refreshing, setRefreshing] = useState(false);
-
-  const fetchWeather = useCallback(
-    async (latitude, longitude, name) => {
-      try {
-        setError("");
-        setRefreshing(true);
-
-        const params = new URLSearchParams({
-          latitude: String(latitude),
-          longitude: String(longitude),
-          current:
-            "temperature_2m,relative_humidity_2m,wind_speed_10m,weather_code",
-          hourly: "precipitation_probability",
-          daily:
-            "weather_code,temperature_2m_max,temperature_2m_min",
-          timezone: "auto",
-          forecast_days: "3",
-        });
-
-        const url = WEATHER_API + "?" + params.toString();
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          throw new Error(
-            "Unable to retrieve weather data. Please try again."
-          );
-        }
-
-        const data = await response.json();
-
-        if (
-          !data.current ||
-          !data.daily ||
-          !data.hourly ||
-          !Array.isArray(data.hourly.time) ||
-          data.hourly.time.length === 0
-        ) {
-          throw new Error(
-            "The weather service returned incomplete data."
-          );
-        }
-
-        const currentTime = data.current.time;
-
-        const hourlyIndex = data.hourly.time.reduce(
-          (closestIndex, time, index) => {
-            const currentDifference = Math.abs(
-              new Date(time).getTime() -
-                new Date(currentTime).getTime()
-            );
-
-            const closestDifference = Math.abs(
-              new Date(
-                data.hourly.time[closestIndex]
-              ).getTime() -
-                new Date(currentTime).getTime()
-            );
-
-            return currentDifference < closestDifference
-              ? index
-              : closestIndex;
-          },
-          0
-        );
-
-        setWeather({
-          temperature: Math.round(
-            data.current.temperature_2m
-          ),
-          humidity: data.current.relative_humidity_2m,
-          windSpeed: data.current.wind_speed_10m,
-          code: data.current.weather_code,
-          rainChance:
-            data.hourly.precipitation_probability[
-              hourlyIndex
-            ] ?? 0,
-        });
-
-        setForecast(
-          data.daily.time.map((date, index) => ({
-            date,
-            temperature: Math.round(
-              data.daily.temperature_2m_max[index]
-            ),
-            low: Math.round(
-              data.daily.temperature_2m_min[index]
-            ),
-            code: data.daily.weather_code[index],
-          }))
-        );
-
-        setLocationName(name);
-        setLastUpdated(new Date());
-      } catch (err) {
-        setError(
-          err.message ||
-            "Something went wrong while loading the weather."
-        );
-      } finally {
-        setLoading(false);
-        setRefreshing(false);
-      }
-    },
-    []
-  );
-
-  const loadWeather = useCallback(() => {
-    if ("geolocation" in navigator) {
-      navigator.geolocation.getCurrentPosition(
-        (position) => {
-          fetchWeather(
-            position.coords.latitude,
-            position.coords.longitude,
-            "Your current location"
-          );
-        },
-        () => {
-          fetchWeather(
-            DEFAULT_LOCATION.latitude,
-            DEFAULT_LOCATION.longitude,
-            DEFAULT_LOCATION.name
-          );
-        },
-        {
-          timeout: 8000,
-          maximumAge: 300000,
-        }
-      );
-    } else {
-      fetchWeather(
-        DEFAULT_LOCATION.latitude,
-        DEFAULT_LOCATION.longitude,
-        DEFAULT_LOCATION.name
-      );
-    }
-  }, [fetchWeather]);
 
   useEffect(() => {
-    loadWeather();
+    dispatch(fetchWeather());
 
-    const interval = setInterval(
-      loadWeather,
-      5 * 60 * 1000
-    );
+    const intervalId = window.setInterval(() => {
+      dispatch(fetchWeather());
+    }, REFRESH_INTERVAL);
 
-    return () => clearInterval(interval);
-  }, [loadWeather]);
+    return () => window.clearInterval(intervalId);
+  }, [dispatch]);
 
-  if (loading) {
-    return (
-      <section className="weather-page">
-        <h2>Weather Forecast</h2>
-
-        <div
-          className="panel weather-message"
-          role="status"
-        >
-          <RefreshCw
-            size={22}
-            className="weather-spinner"
-          />
-          <p>Loading live weather data...</p>
-        </div>
-      </section>
-    );
-  }
+  const isLoading = status === "loading";
+  const hasError = status === "failed";
 
   return (
     <section className="weather-page">
-      <div className="weather-heading">
+      <div className="weather-page-heading">
         <div>
-          <p className="weather-eyebrow">
-            FARM CONDITIONS
-          </p>
+          <span className="weather-eyebrow">LIVE FARM CONDITIONS</span>
 
-          <h2>Weather Forecast</h2>
+          <h2>Weather Center</h2>
 
-          <p className="weather-subtitle">
-            Live weather information to help plan your farming
-            activities.
-          </p>
-
-          <p className="weather-location">
-            📍 {locationName}
+          <p>
+            Monitor local weather to make informed farming decisions.
           </p>
         </div>
 
         <button
           type="button"
-          className="weather-refresh"
-          onClick={loadWeather}
-          disabled={refreshing}
+          className="weather-refresh-button"
+          onClick={() => dispatch(fetchWeather())}
+          disabled={isLoading}
         >
           <RefreshCw
             size={17}
-            className={
-              refreshing ? "weather-spinner" : ""
-            }
+            className={isLoading ? "weather-spinning" : ""}
           />
-          {refreshing ? "Refreshing..." : "Refresh"}
+          {isLoading ? "Updating..." : "Refresh"}
         </button>
       </div>
 
-      {error && (
+      {hasError && (
         <div className="weather-error" role="alert">
           <AlertCircle size={20} />
-          <span>{error}</span>
+
+          <div>
+            <strong>Weather update failed</strong>
+
+            <p>
+              {error || "Please check your internet connection."}
+            </p>
+
+            {data && (
+              <p>Showing the last successfully loaded weather data.</p>
+            )}
+          </div>
+        </div>
+      )}
+
+      {!data && isLoading && (
+        <div className="weather-message">
+          <RefreshCw size={25} className="weather-spinning" />
+
+          <p>Fetching live weather for Lahore...</p>
+        </div>
+      )}
+
+      {!data && hasError && (
+        <div className="weather-message">
+          <CloudRain size={30} />
+
+          <h3>Weather data unavailable</h3>
+
+          <p>
+            Check your internet connection and try refreshing.
+          </p>
+
           <button
             type="button"
-            onClick={loadWeather}
+            className="weather-refresh-button"
+            onClick={() => dispatch(fetchWeather())}
           >
-            Try again
+            Try Again
           </button>
         </div>
       )}
 
-      {weather && (
+      {data && (
         <>
-          <div className="weather-alerts">
-            {(() => {
-              const advice = getHumidityAdvice(
-                weather.humidity
-              );
+          <div className="weather-location-row">
+            <div>
+              <h3>{data.location}</h3>
 
-              const AdviceIcon =
-                advice.level === "optimal"
-                  ? CheckCircle2
-                  : AlertCircle;
+              <p>
+                {data.current.time
+                  ? new Date(data.current.time).toLocaleString("en-PK", {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                      timeZone: "Asia/Karachi",
+                    })
+                  : "Current conditions"}
+              </p>
+            </div>
 
-              return (
-                <article
-                  className={
-                    "weather-alert weather-alert-" +
-                    advice.level
-                  }
-                >
-                  <AdviceIcon size={22} />
-
-                  <div>
-                    <h4>{advice.title}</h4>
-                    <p>{advice.message}</p>
-                  </div>
-                </article>
-              );
-            })()}
-
-            {weather.rainChance >= 60 && (
-              <article className="weather-alert weather-alert-rain">
-                <CloudRain size={22} />
-
-                <div>
-                  <h4>Rain Expected</h4>
-                  <p>
-                    The nearest hourly forecast indicates a
-                    high chance of rain. Consider checking
-                    irrigation plans and outdoor farm
-                    activities.
-                  </p>
-                </div>
-              </article>
-            )}
+            <span className="weather-live-indicator">
+              <span />
+              Live Data
+            </span>
           </div>
 
-          <div className="weather-current-grid">
-            <article className="panel weather-current-card">
+          <div className="weather-main-grid">
+            <article className="weather-current-card">
               <div className="weather-current-top">
                 <div>
-                  <span className="weather-label">
+                  <span className="weather-card-label">
                     CURRENT TEMPERATURE
                   </span>
 
-                  <h3>{weather.temperature}°C</h3>
+                  <h2>
+                    {Math.round(data.current.temperature)}°
+                    <span>C</span>
+                  </h2>
 
                   <p>
-                    {getWeatherDescription(weather.code)}
+                    {getWeatherDescription(data.current.weatherCode)}
                   </p>
                 </div>
 
                 {(() => {
-                  const Icon = getWeatherIcon(
-                    weather.code
-                  );
+                  const Icon = getWeatherIcon(data.current.weatherCode);
 
-                  return (
-                    <Icon
-                      size={52}
-                      className="weather-main-icon"
-                    />
-                  );
+                  return <Icon size={76} strokeWidth={1.4} />;
                 })()}
               </div>
 
-              <p className="weather-hint">
-                Use current conditions to plan outdoor farm
-                activities.
-              </p>
-            </article>
+              <div className="weather-current-footer">
+                <span>
+                  <Droplets size={17} />
+                  Humidity: {data.current.humidity}%
+                </span>
 
-            <article className="panel weather-metric humidity-card">
-              <div className="humidity-card-heading">
-                <Droplets size={24} />
-
-                <span className="weather-label">
-                  HUMIDITY
+                <span>
+                  <Wind size={17} />
+                  Wind: {data.current.windSpeed} km/h
                 </span>
               </div>
+            </article>
 
-              <div
-                className="humidity-gauge"
-                role="img"
-                aria-label={
-                  "Humidity is " +
-                  weather.humidity +
-                  " percent"
-                }
-                style={{
-                  "--humidity-value":
-                    weather.humidity + "%",
-                }}
-              >
-                <div className="humidity-gauge-inner">
-                  <strong>
-                    {weather.humidity}%
-                  </strong>
-                  <span>Humidity</span>
-                </div>
+            <article className="weather-stat-card">
+              <div className="weather-stat-icon">
+                <Droplets size={22} />
               </div>
 
-              <span
-                className={
-                  "humidity-status humidity-" +
-                  getHumidityStatus(
-                    weather.humidity
-                  ).toLowerCase()
-                }
+              <p>Humidity</p>
+
+              <h3>{data.current.humidity}%</h3>
+
+              <div
+                className="weather-progress-track"
+                role="progressbar"
+                aria-label="Relative humidity"
+                aria-valuenow={data.current.humidity}
+                aria-valuemin={0}
+                aria-valuemax={100}
               >
-                {getHumidityStatus(weather.humidity)}
-              </span>
+                <div
+                  className="weather-progress-fill"
+                  style={{
+                    width: `${data.current.humidity}%`,
+                  }}
+                />
+              </div>
+
+              <span>Relative humidity</span>
             </article>
 
-            <article className="panel weather-metric">
-              <Wind size={26} />
+            <article className="weather-stat-card">
+              <div className="weather-stat-icon">
+                <Wind size={22} />
+              </div>
 
-              <span className="weather-label">
-                WIND SPEED
-              </span>
+              <p>Wind Speed</p>
 
-              <h3>
-                {weather.windSpeed} <small>km/h</small>
-              </h3>
+              <h3>{data.current.windSpeed} <small>km/h</small></h3>
 
-              <p>Current wind conditions</p>
+              <span>Current wind conditions</span>
             </article>
 
-            <article className="panel weather-metric">
-              <CloudRain size={26} />
+            <article className="weather-stat-card">
+              <div className="weather-stat-icon">
+                <CloudRain size={22} />
+              </div>
 
-              <span className="weather-label">
-                RAIN CHANCE
-              </span>
+              <p>Chance of Rain</p>
 
-              <h3>{weather.rainChance}%</h3>
+              <h3>{data.current.rainChance}%</h3>
 
-              <p>Nearest hourly forecast</p>
+              <span>Today's forecast probability</span>
+            </article>
+
+            <article className="weather-stat-card">
+              <div className="weather-stat-icon">
+                <Thermometer size={22} />
+              </div>
+
+              <p>Precipitation</p>
+
+              <h3>{data.current.precipitation} <small>mm</small></h3>
+
+              <span>Current precipitation</span>
             </article>
           </div>
 
-          <div className="weather-section-heading">
+          <div className="weather-forecast-heading">
             <div>
-              <h3>Three-Day Forecast</h3>
-              <p>
-                Daily temperatures and expected conditions
-              </p>
+              <span className="weather-eyebrow">PLAN AHEAD</span>
+
+              <h3>3-Day Forecast</h3>
+
+              <p>Check upcoming weather before planning farm activities.</p>
             </div>
           </div>
 
           <div className="weather-forecast-grid">
-            {forecast.map((item, index) => {
-              const Icon = getWeatherIcon(item.code);
-
-              const dayName =
-                index === 0
-                  ? "Today"
-                  : index === 1
-                    ? "Tomorrow"
-                    : new Date(
-                        item.date + "T12:00:00"
-                      ).toLocaleDateString("en-US", {
-                        weekday: "long",
-                      });
+            {data.forecast.map((day, index) => {
+              const Icon = getWeatherIcon(day.weatherCode);
 
               return (
                 <article
-                  className="panel weather-forecast-card"
-                  key={item.date}
+                  className="weather-forecast-card"
+                  key={day.date}
                 >
-                  <h4>{dayName}</h4>
+                  <span className="weather-forecast-date">
+                    {index === 0
+                      ? "Today"
+                      : formatForecastDate(day.date)}
+                  </span>
 
                   <Icon
-                    size={36}
+                    size={37}
+                    strokeWidth={1.6}
                     className="weather-forecast-icon"
                   />
 
-                  <p>
-                    {getWeatherDescription(item.code)}
-                  </p>
+                  <strong>
+                    {getWeatherDescription(day.weatherCode)}
+                  </strong>
 
-                  <div className="weather-temperatures">
-                    <strong>
-                      {item.temperature}°
-                    </strong>
-                    <span>{item.low}°</span>
+                  <div className="weather-temperature-range">
+                    <span>{Math.round(day.maxTemperature)}°</span>
+
+                    <span>{Math.round(day.minTemperature)}°</span>
                   </div>
 
-                  <span className="weather-temp-caption">
-                    High / Low
-                  </span>
+                  <div className="weather-rain-chance">
+                    <Droplets size={15} />
+
+                    <span>{day.rainChance}% rain chance</span>
+                  </div>
                 </article>
               );
             })}
           </div>
 
-          <div className="weather-note">
-            {lastUpdated && (
-              <span>
-                Last updated:{" "}
-                {lastUpdated.toLocaleTimeString()}
-              </span>
-            )}
-
-            <span>
-              Automatically refreshes every 5 minutes.
-            </span>
-
-            <span>Weather data: Open-Meteo</span>
+          <div className="weather-updated-at">
+            Last updated:{" "}
+            {new Date(data.updatedAt).toLocaleString("en-PK", {
+              dateStyle: "medium",
+              timeStyle: "short",
+              timeZone: "Asia/Karachi",
+            })}
+            {" · "}Automatic refresh every 15 minutes
           </div>
         </>
       )}
