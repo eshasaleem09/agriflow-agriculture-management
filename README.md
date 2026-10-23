@@ -1,5 +1,9 @@
 # AgriFlow — Agriculture Management System
 
+**Live Demo:** https://agriflow-agriculture-management-qkl3xi46o-esha-saleem.vercel.app/
+
+**GitHub Repository:** https://github.com/eshasaleem09/agriflow-agriculture-management
+
 **U DEVS (SMC-PRIVATE) LIMITED | Full Stack Developer — Batch 6**
 
 AgriFlow is a React-based agriculture management application designed to help farm managers monitor crops, manage buyers, schedule farm activities, track inventory, record financial transactions, and review farm performance through reports.
@@ -357,3 +361,4 @@ U DEVS (SMC-PRIVATE) LIMITED
 ## License
 
 This project was developed as an internship assignment for U DEVS (SMC-PRIVATE) LIMITED.
+
