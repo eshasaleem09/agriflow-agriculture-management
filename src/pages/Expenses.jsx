@@ -64,14 +64,14 @@ function Expenses() {
   const [form, setForm] = useState(emptyForm);
 
   const totalIncome = expenses
-    .filter((item) => item.type === "Income")
-    .reduce((total, item) => total + item.amount, 0);
+  .filter((item) => item.type === "Income")
+  .reduce((total, item) => total + (Number(item.amount) || 0), 0);
 
-  const totalExpenses = expenses
-    .filter((item) => item.type === "Expense")
-    .reduce((total, item) => total + item.amount, 0);
+const totalExpenses = expenses
+  .filter((item) => item.type === "Expense")
+  .reduce((total, item) => total + (Number(item.amount) || 0), 0);
 
-  const netProfit = totalIncome - totalExpenses;
+const netProfit = totalIncome - totalExpenses;
 
   const filteredExpenses = useMemo(() => {
     return expenses
@@ -83,9 +83,9 @@ function Expenses() {
         const searchText = search.toLowerCase();
 
         const matchesSearch =
-          item.category.toLowerCase().includes(searchText) ||
-          (crop?.name || "").toLowerCase().includes(searchText) ||
-          (item.notes || "").toLowerCase().includes(searchText);
+  (item.category || "").toLowerCase().includes(searchText) ||
+  (crop?.name || "").toLowerCase().includes(searchText) ||
+  (item.notes || "").toLowerCase().includes(searchText);
 
         const matchesType =
           typeFilter === "All" || item.type === typeFilter;
@@ -99,16 +99,18 @@ function Expenses() {
   const cropFinances = useMemo(() => {
     return crops.map((crop) => {
       const records = expenses.filter(
-        (item) => Number(item.cropId) === Number(crop.id)
-      );
+  (item) =>
+    item.cropId != null &&
+    String(item.cropId) === String(crop.id)
+);
 
       const income = records
         .filter((item) => item.type === "Income")
-        .reduce((total, item) => total + item.amount, 0);
+        .reduce((total, item) => total + (Number(item.amount) || 0), 0);
 
       const cost = records
         .filter((item) => item.type === "Expense")
-        .reduce((total, item) => total + item.amount, 0);
+        .reduce((total, item) => total + (Number(item.amount) || 0), 0);
 
       return {
         id: crop.id,
@@ -140,7 +142,7 @@ function Expenses() {
 
     setForm({
       type: item.type,
-      cropId: String(item.cropId),
+      cropId: item.cropId == null ? "" : String(item.cropId),
       category: item.category,
       amount: String(item.amount),
       date: item.date,
@@ -163,12 +165,11 @@ function Expenses() {
     const amount = Number(form.amount);
     const cropId = Number(form.cropId);
 
-    if (
-      !category ||
-      !form.cropId ||
-      !form.date ||
-      form.amount === ""
-    ) {
+   if (
+  !category ||
+  !form.date ||
+  form.amount === ""
+) {
       setError("Please complete all required fields.");
       return;
     }
@@ -177,24 +178,32 @@ function Expenses() {
       setError("Amount must be greater than zero.");
       return;
     }
+    if (
+  !/^\d{4}-\d{2}-\d{2}$/.test(form.date) ||
+  new Date(`${form.date}T00:00:00`).toISOString().slice(0, 10) !== form.date
+) {
+  setError("Please select a valid date.");
+  return;
+}
 
-    const linkedCrop = crops.find(
-      (crop) => Number(crop.id) === cropId
-    );
+    const linkedCrop = form.cropId
+  ? crops.find((crop) => Number(crop.id) === cropId)
+  : null;
 
-    if (!linkedCrop) {
-      setError("Please select a valid crop.");
-      return;
-    }
+if (form.cropId && !linkedCrop) {
+  setError("Please select a valid crop.");
+  return;
+}
 
     const record = {
       id: editingId ?? Date.now(),
       type: form.type,
-      cropId,
+      cropId: form.cropId ? cropId : null,
       category,
       amount,
       date: form.date,
       notes: form.notes.trim(),
+      
     };
 
     if (editingId !== null) {
@@ -395,7 +404,9 @@ function Expenses() {
                     <tr key={item.id}>
                       <td>{item.date}</td>
 
-                      <td>{crop?.name || "Crop unavailable"}</td>
+                      <td>
+  {crop?.name || (item.cropId == null ? "General Farm Expense" : "Crop unavailable")}
+</td>
 
                       <td>
                         <div>{item.category}</div>
@@ -502,13 +513,7 @@ function Expenses() {
                 <X size={20} />
               </button>
             </div>
-
-            {crops.length === 0 ? (
-              <p className="expense-form-error">
-                Please add a crop before creating financial records.
-              </p>
-            ) : (
-              <form onSubmit={handleSubmit}>
+<form onSubmit={handleSubmit}>
                 <label>
                   Record type
 
@@ -524,23 +529,23 @@ function Expenses() {
                 </label>
 
                 <label>
-                  Linked crop
+  Linked crop (optional)
 
-                  <select
-                    value={form.cropId}
-                    onChange={(event) =>
-                      setForm({ ...form, cropId: event.target.value })
-                    }
-                    required
-                  >
-                    {crops.map((crop) => (
-                      <option key={crop.id} value={crop.id}>
-                        {crop.name} — {crop.field}
-                      </option>
-                    ))}
-                  </select>
-                </label>
+  <select
+    value={form.cropId}
+    onChange={(event) =>
+      setForm({ ...form, cropId: event.target.value })
+    }
+  >
+    <option value="">General Farm Expense</option>
 
+    {crops.map((crop) => (
+      <option key={crop.id} value={crop.id}>
+        {crop.name} — {crop.field}
+      </option>
+    ))}
+  </select>
+</label>
                 <label>
                   Category
 
@@ -623,8 +628,7 @@ function Expenses() {
                     {editingId !== null ? "Save Changes" : "Save Record"}
                   </button>
                 </div>
-              </form>
-            )}
+                  </form>
           </section>
         </div>
       )}

@@ -92,9 +92,13 @@ function Weather() {
   const dispatch = useDispatch();
 
   const { data, status, error } = useSelector(
-    (state) => state.weather
-  );
-
+  (state) =>
+    state.weather || {
+      data: null,
+      status: "idle",
+      error: null,
+    }
+);
   useEffect(() => {
     dispatch(fetchWeather());
 
@@ -260,10 +264,12 @@ function Weather() {
                 aria-valuemax={100}
               >
                 <div
-                  className="weather-progress-fill"
                   style={{
-                    width: `${data.current.humidity}%`,
-                  }}
+  width: `${Math.min(
+    100,
+    Math.max(0, Number(data.current.humidity) || 0)
+  )}%`,
+}}
                 />
               </div>
 

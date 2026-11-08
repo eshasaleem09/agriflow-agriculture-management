@@ -28,13 +28,28 @@ function getLocalDate() {
 
   return `${year}-${month}-${day}`;
 }
+function isValidDate(value) {
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) {
+    return false;
+  }
+
+  const [year, month, day] = value.split("-").map(Number);
+
+  const date = new Date(year, month - 1, day);
+
+  return (
+    date.getFullYear() === year &&
+    date.getMonth() === month - 1 &&
+    date.getDate() === day
+  );
+}
 
 function getTaskStatus(task, today) {
   if (task.status === "Done") {
     return "Done";
   }
 
-  if (task.dueDate < today) {
+  if (task.dueDate && task.dueDate < today) {
     return "Overdue";
   }
 
@@ -44,9 +59,9 @@ function getTaskStatus(task, today) {
 function Tasks() {
   const dispatch = useDispatch();
 
-  const tasks = useSelector((state) => state.tasks);
-  const crops = useSelector((state) => state.crops);
-  const { user } = useSelector((state) => state.auth);
+  const tasks = useSelector((state) => state.tasks || []);
+const crops = useSelector((state) => state.crops || []);
+const user = useSelector((state) => state.auth?.user);
 
   const isAdmin = user?.role === "Admin";
   const today = getLocalDate();
@@ -93,16 +108,20 @@ function Tasks() {
 
         const taskStatus = getTaskStatus(task, today);
 
-        const matchesSearch =
-          task.title.toLowerCase().includes(search.toLowerCase()) ||
-          (crop?.name || "").toLowerCase().includes(search.toLowerCase());
+        const query = search.trim().toLowerCase();
+
+const matchesSearch =
+  (task.title || "").toLowerCase().includes(query) ||
+  (crop?.name || "").toLowerCase().includes(query);
 
         const matchesStatus =
           statusFilter === "All" || taskStatus === statusFilter;
 
         return matchesSearch && matchesStatus;
       })
-      .sort((a, b) => a.dueDate.localeCompare(b.dueDate));
+      .sort((a, b) =>
+  (a.dueDate || "").localeCompare(b.dueDate || "")
+);
   }, [tasks, crops, search, statusFilter, today]);
 
   function openAddModal() {
@@ -142,18 +161,23 @@ function Tasks() {
     }
 
     const title = form.title.trim();
-    const cropId = Number(form.cropId);
+    const cropId = form.cropId;
     const dueDate = form.dueDate;
     const notes = form.notes.trim();
 
     if (!title || !form.cropId || !dueDate) {
-      setFormError("Please complete all required fields.");
-      return;
-    }
+  setFormError("Please complete all required fields.");
+  return;
+}
+
+if (!isValidDate(dueDate)) {
+  setFormError("Please select a valid due date.");
+  return;
+}
 
     const linkedCrop = crops.find(
-      (crop) => Number(crop.id) === cropId
-    );
+  (crop) => String(crop.id) === String(cropId)
+);
 
     if (!linkedCrop) {
       setFormError("Please select a valid crop.");
@@ -297,7 +321,7 @@ function Tasks() {
         <div className="tasks-list">
           {filteredTasks.map((task) => {
             const crop = crops.find(
-              (item) => Number(item.id) === Number(task.cropId)
+              (item) => String(item.id) === String(task.cropId)
             );
 
             const status = getTaskStatus(task, today);

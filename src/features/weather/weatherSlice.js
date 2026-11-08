@@ -28,9 +28,16 @@ export const fetchWeather = createAsyncThunk(
 
       const raw = await response.json();
 
-      if (!raw.current || !raw.daily) {
-        throw new Error("Weather data is incomplete.");
-      }
+      if (
+  !raw.current ||
+  !raw.daily ||
+  !Array.isArray(raw.daily.time) ||
+  !Array.isArray(raw.daily.weather_code) ||
+  !Array.isArray(raw.daily.temperature_2m_max) ||
+  !Array.isArray(raw.daily.temperature_2m_min)
+) {
+  throw new Error("Weather data is incomplete.");
+}
 
       const forecast = raw.daily.time.map((date, index) => ({
         date,
@@ -95,10 +102,16 @@ const weatherSlice = createSlice({
       })
 
       .addCase(fetchWeather.rejected, (state, action) => {
-        state.status = "failed";
-        state.error =
-          action.payload || action.error.message || "Weather request failed.";
-      });
+  if (action.meta.aborted) {
+    return;
+  }
+
+  state.status = "failed";
+  state.error =
+    action.payload ||
+    action.error.message ||
+    "Weather request failed.";
+});
   },
 });
 

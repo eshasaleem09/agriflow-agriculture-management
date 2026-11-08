@@ -1,3 +1,5 @@
+import { useSelector } from "react-redux";
+
 import {
   Sprout,
   Wheat,
@@ -15,6 +17,10 @@ import {
   FlaskConical,
   MapPin,
   ArrowUpRight,
+  Users,
+  UserCheck,
+  UserX,
+  Wallet,
 } from "lucide-react";
 
 import {
@@ -29,6 +35,18 @@ import {
   Pie,
   Cell,
 } from "recharts";
+
+import {
+  selectActiveWorkers,
+  selectWorkersPresentToday,
+  selectWorkersAbsentToday,
+  selectMonthlyWagesPayable,
+  selectWorkerAbsencePercentage,
+} from "../app/redux/selectors/index.js";
+
+// ==========================================
+// DASHBOARD STATIC DATA
+// ==========================================
 
 const productionData = [
   { month: "Jan", production: 420 },
@@ -92,55 +110,73 @@ const orders = [
   },
 ];
 
+// ==========================================
+// DASHBOARD COMPONENT
+// ==========================================
+
 function Dashboard() {
+  // Redux selectors MUST stay inside the component.
+
+  const activeWorkers = useSelector(selectActiveWorkers);
+  const presentToday = useSelector(selectWorkersPresentToday);
+  const absentToday = useSelector(selectWorkersAbsentToday);
+  const monthlyWages = useSelector(selectMonthlyWagesPayable);
+  const absencePercentage = useSelector(
+    selectWorkerAbsencePercentage
+  );
+
   return (
     <div className="page-content">
-      {/* Farm Landscape Hero */}
-<section className="farm-hero">
-  <img
-    src="/images/farm-landscape.avif"
-    alt="Green agricultural fields"
-    className="farm-hero-image"
-  />
 
-  <div className="farm-hero-overlay" />
+      {/* FARM LANDSCAPE HERO */}
 
-  <div className="farm-hero-content">
-    <span className="farm-hero-label">
-      <Sprout size={16} />
-      YOUR FARM AT A GLANCE
-    </span>
+      <section className="farm-hero">
+        <img
+          src="/images/farm-landscape.avif"
+          alt="Green agricultural fields"
+          className="farm-hero-image"
+        />
 
-    <h2>Growing a Better Tomorrow.</h2>
+        <div className="farm-hero-overlay" />
 
-    <p>
-      Monitor your crops, manage farm operations, and
-      make smarter decisions for a healthier harvest.
-    </p>
+        <div className="farm-hero-content">
+          <span className="farm-hero-label">
+            <Sprout size={16} />
+            YOUR FARM AT A GLANCE
+          </span>
 
-    <div className="farm-hero-location">
-      <MapPin size={15} />
-      Lahore, Pakistan
-      <span />
-      Kharif Season
-    </div>
-  </div>
+          <h2>Growing a Better Tomorrow.</h2>
 
-  <div className="farm-hero-season">
-    <div className="farm-hero-season-icon">
-      <Wheat size={25} />
-    </div>
+          <p>
+            Monitor your crops, manage farm operations, and
+            make smarter decisions for a healthier harvest.
+          </p>
 
-    <div>
-      <span>CURRENT SEASON</span>
-      <strong>Kharif Season</strong>
-      <small>June – October</small>
-    </div>
-  </div>
-</section>
+          <div className="farm-hero-location">
+            <MapPin size={15} />
+            Lahore, Pakistan
+            <span />
+            Kharif Season
+          </div>
+        </div>
 
-      {/* Statistics */}
+        <div className="farm-hero-season">
+          <div className="farm-hero-season-icon">
+            <Wheat size={25} />
+          </div>
+
+          <div>
+            <span>CURRENT SEASON</span>
+            <strong>Kharif Season</strong>
+            <small>June – October</small>
+          </div>
+        </div>
+      </section>
+
+      {/* STATISTICS */}
+
       <section className="stats-grid">
+
         <article className="stat-card">
           <div className="stat-top">
             <div className="stat-icon crops-icon">
@@ -172,6 +208,7 @@ function Dashboard() {
           </div>
 
           <p>Total Production</p>
+
           <h3>
             12,450 <small>kg</small>
           </h3>
@@ -218,24 +255,187 @@ function Dashboard() {
             Successfully delivered
           </span>
         </article>
+
       </section>
 
-      {/* Farm health and weather */}
+      {/* FARM HEALTH AND WEATHER */}
+            {/* WORKERS & ATTENDANCE */}
+
+      <section className="workers-dashboard-section">
+
+        <div className="workers-dashboard-header">
+          <div>
+            <h3>Workers & Attendance</h3>
+            <p>Daily workforce and monthly wage overview</p>
+          </div>
+
+          <span className="workers-live-badge">
+            <span className="live-dot"></span>
+            Workforce Overview
+          </span>
+        </div>
+
+        <div className="workers-dashboard-grid">
+
+          {/* ACTIVE WORKERS */}
+
+          <article className="worker-stat-card">
+            <div className="worker-stat-icon">
+              <Users size={21} />
+            </div>
+
+            <div>
+              <span>Active Workers</span>
+              <h3>{activeWorkers.length}</h3>
+              <small>Currently employed</small>
+            </div>
+          </article>
+
+          {/* PRESENT TODAY */}
+
+          <article className="worker-stat-card">
+            <div className="worker-stat-icon present-icon">
+              <UserCheck size={21} />
+            </div>
+
+            <div>
+              <span>Present Today</span>
+              <h3>{presentToday}</h3>
+              <small>Attendance marked present</small>
+            </div>
+          </article>
+
+          {/* ABSENT TODAY */}
+
+          <article className="worker-stat-card">
+            <div className="worker-stat-icon absent-icon">
+              <UserX size={21} />
+            </div>
+
+            <div>
+              <span>Absent Today</span>
+              <h3>{absentToday}</h3>
+              <small>Attendance marked absent</small>
+            </div>
+          </article>
+
+          {/* MONTHLY WAGES */}
+
+          <article className="worker-stat-card">
+            <div className="worker-stat-icon wage-icon">
+              <Wallet size={21} />
+            </div>
+
+            <div>
+              <span>Monthly Wages</span>
+
+              <h3 className="wage-value">
+                PKR {monthlyWages.toLocaleString("en-PK", {
+                  maximumFractionDigits: 0,
+                })}
+              </h3>
+
+              <small>Calculated from attendance</small>
+            </div>
+          </article>
+
+        </div>
+
+        {/* ATTENDANCE SUMMARY */}
+
+        <div className="attendance-summary">
+
+          <div className="attendance-summary-top">
+            <div>
+              <strong>Daily Attendance Rate</strong>
+              <p>Based on active workers</p>
+            </div>
+
+            <strong className="attendance-percentage">
+              {(100 - absencePercentage).toFixed(1)}%
+            </strong>
+          </div>
+
+          <div className="attendance-progress-track">
+            <div
+              className="attendance-progress-fill"
+              style={{
+                width: `${Math.min(
+                  100,
+                  Math.max(0, 100 - absencePercentage)
+                )}%`,
+              }}
+            />
+          </div>
+
+          <div className="attendance-summary-footer">
+            <span>
+              {presentToday} Present
+            </span>
+
+            <span>
+              {absentToday} Absent
+            </span>
+
+            <span>
+              {activeWorkers.length} Active Workers
+            </span>
+          </div>
+
+        </div>
+
+        {/* ABSENCE ALERT */}
+
+        {absencePercentage > 30 && activeWorkers.length > 0 && (
+          <div className="attendance-warning">
+            <UserX size={19} />
+
+            <div>
+              <strong>Attendance Needs Attention</strong>
+
+              <p>
+                More than 30% of active workers are absent today.
+                Please review your attendance records.
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* NO WORKERS MESSAGE */}
+
+        {activeWorkers.length === 0 && (
+          <div className="workers-empty-state">
+            <Users size={25} />
+            <p>No active workers found. Add workers to see your workforce overview.</p>
+          </div>
+        )}
+
+      </section>
+
       <section className="dashboard-grid">
+
         <article className="panel farm-health-panel">
+
           <div className="panel-header">
             <div>
               <h3>Farm Health Overview</h3>
               <p>General farm condition indicators</p>
             </div>
 
-            <span className="demo-label">DEMO DATA</span>
+            <span className="demo-label">
+              DEMO DATA
+            </span>
           </div>
 
           <div className="health-content">
+
             <div className="health-ring">
-              <svg viewBox="0 0 140 140" role="img"
-                aria-label="Demonstration farm health score: 86 out of 100">
+
+              <svg
+                viewBox="0 0 140 140"
+                role="img"
+                aria-label="Demonstration farm health score: 86 out of 100"
+              >
                 <circle
                   cx="70"
                   cy="70"
@@ -263,9 +463,11 @@ function Dashboard() {
                 <span>/100</span>
                 <small>Good</small>
               </div>
+
             </div>
 
             <div className="health-legend">
+
               <div>
                 <span className="legend-dot lime-dot" />
                 <span>Excellent</span>
@@ -289,28 +491,36 @@ function Dashboard() {
                 <span>Needs attention</span>
                 <strong>10%</strong>
               </div>
+
             </div>
           </div>
 
           <div className="health-footer">
             <TrendingUp size={15} />
+
             <span>
               Example score for the dashboard preview
             </span>
           </div>
+
         </article>
 
         <article className="panel weather-panel">
+
           <div className="panel-header">
             <div>
               <h3>Weather Today</h3>
               <p>Local farm conditions</p>
             </div>
 
-            <Sun size={20} className="weather-sun-icon" />
+            <Sun
+              size={20}
+              className="weather-sun-icon"
+            />
           </div>
 
           <div className="weather-main">
+
             <div className="weather-temperature">
               <strong>28°</strong>
               <span>Partly cloudy</span>
@@ -318,11 +528,16 @@ function Dashboard() {
             </div>
 
             <div className="weather-illustration">
-              <CloudSun size={62} strokeWidth={1.3} />
+              <CloudSun
+                size={62}
+                strokeWidth={1.3}
+              />
             </div>
+
           </div>
 
           <div className="weather-details">
+
             <div>
               <Droplets size={16} />
               <span>Humidity</span>
@@ -340,17 +555,23 @@ function Dashboard() {
               <span>Rain chance</span>
               <strong>20%</strong>
             </div>
+
           </div>
 
           <p className="weather-note">
             Sample weather data · Live updates not connected
           </p>
+
         </article>
+
       </section>
 
-      {/* Production chart and crop distribution */}
+      {/* PRODUCTION CHART AND CROP DISTRIBUTION */}
+
       <section className="dashboard-grid">
+
         <article className="panel production-panel">
+
           <div className="panel-header">
             <div>
               <h3>Crop Production</h3>
@@ -379,7 +600,9 @@ function Dashboard() {
           </div>
 
           <div className="production-chart">
+
             <ResponsiveContainer width="100%" height="100%">
+
               <AreaChart
                 data={productionData}
                 margin={{
@@ -389,6 +612,7 @@ function Dashboard() {
                   bottom: 0,
                 }}
               >
+
                 <defs>
                   <linearGradient
                     id="productionGradient"
@@ -421,13 +645,19 @@ function Dashboard() {
                   dataKey="month"
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "#b2c6b5", fontSize: 12 }}
+                  tick={{
+                    fill: "#b2c6b5",
+                    fontSize: 12,
+                  }}
                 />
 
                 <YAxis
                   axisLine={false}
                   tickLine={false}
-                  tick={{ fill: "#b2c6b5", fontSize: 12 }}
+                  tick={{
+                    fill: "#b2c6b5",
+                    fontSize: 12,
+                  }}
                 />
 
                 <Tooltip
@@ -450,24 +680,35 @@ function Dashboard() {
                   strokeWidth={3}
                   fill="url(#productionGradient)"
                 />
+
               </AreaChart>
+
             </ResponsiveContainer>
+
           </div>
+
         </article>
 
         <article className="panel crop-distribution-panel">
+
           <div className="panel-header">
             <div>
               <h3>Crop Distribution</h3>
               <p>Illustrative share by crop</p>
             </div>
 
-            <Sprout size={20} className="panel-accent-icon" />
+            <Sprout
+              size={20}
+              className="panel-accent-icon"
+            />
           </div>
 
           <div className="distribution-chart">
+
             <ResponsiveContainer width="100%" height="100%">
+
               <PieChart>
+
                 <Pie
                   data={cropDistribution}
                   dataKey="value"
@@ -477,16 +718,21 @@ function Dashboard() {
                   paddingAngle={4}
                   stroke="none"
                 >
+
                   {cropDistribution.map((crop) => (
                     <Cell
                       key={crop.name}
                       fill={crop.color}
                     />
                   ))}
+
                 </Pie>
 
                 <Tooltip
-                  formatter={(value) => [`${value}%`, "Share"]}
+                  formatter={(value) => [
+                    `${value}%`,
+                    "Share",
+                  ]}
                   contentStyle={{
                     background: "#173d2d",
                     border: "1px solid #496b4f",
@@ -494,48 +740,70 @@ function Dashboard() {
                     color: "#f5f5e9",
                   }}
                 />
+
               </PieChart>
+
             </ResponsiveContainer>
 
             <div className="distribution-center">
               <strong>4</strong>
               <span>Crop types</span>
             </div>
+
           </div>
 
           <div className="crop-legend">
+
             {cropDistribution.map((crop) => (
               <div key={crop.name}>
+
                 <span>
-                  <i style={{ background: crop.color }} />
+                  <i
+                    style={{
+                      background: crop.color,
+                    }}
+                  />
                   {crop.name}
                 </span>
 
                 <strong>{crop.value}%</strong>
+
               </div>
             ))}
+
           </div>
+
         </article>
+
       </section>
 
-      {/* Soil health indicators */}
+      {/* SOIL HEALTH INDICATORS */}
+
       <section className="panel soil-panel">
+
         <div className="panel-header">
           <div>
             <h3>Soil Health Summary</h3>
-            <p>Example indicators for monitoring your farmland</p>
+            <p>
+              Example indicators for monitoring your farmland
+            </p>
           </div>
 
-          <span className="demo-label">DEMO DATA</span>
+          <span className="demo-label">
+            DEMO DATA
+          </span>
         </div>
 
         <div className="soil-metrics">
+
           <div className="soil-metric">
+
             <div className="soil-metric-icon">
               <Droplets size={21} />
             </div>
 
             <div className="soil-metric-content">
+
               <div>
                 <span>Soil Moisture</span>
                 <strong>68%</strong>
@@ -546,15 +814,19 @@ function Dashboard() {
               </div>
 
               <small>Example reading</small>
+
             </div>
+
           </div>
 
           <div className="soil-metric">
+
             <div className="soil-metric-icon">
               <FlaskConical size={21} />
             </div>
 
             <div className="soil-metric-content">
+
               <div>
                 <span>Soil Fertility</span>
                 <strong>82%</strong>
@@ -565,15 +837,19 @@ function Dashboard() {
               </div>
 
               <small>Illustrative indicator</small>
+
             </div>
+
           </div>
 
           <div className="soil-metric">
+
             <div className="soil-metric-icon">
               <Leaf size={21} />
             </div>
 
             <div className="soil-metric-content">
+
               <div>
                 <span>Organic Matter</span>
                 <strong>5.2%</strong>
@@ -584,28 +860,43 @@ function Dashboard() {
               </div>
 
               <small>Example reading</small>
+
             </div>
+
           </div>
+
         </div>
+
       </section>
 
-      {/* Upcoming tasks */}
+      {/* UPCOMING FARM TASKS */}
+
       <section className="panel tasks-panel">
+
         <div className="panel-header">
           <div>
             <h3>Upcoming Farm Tasks</h3>
             <p>Example activities to organise your work</p>
           </div>
 
-          <CalendarDays size={20} className="panel-accent-icon" />
+          <CalendarDays
+            size={20}
+            className="panel-accent-icon"
+          />
         </div>
 
         <div className="task-list">
+
           {tasks.map((task, index) => {
+
             const TaskIcon = task.icon;
 
             return (
-              <div className="task-item" key={task.title}>
+              <div
+                className="task-item"
+                key={task.title}
+              >
+
                 <div className="task-icon">
                   <TaskIcon size={19} />
                 </div>
@@ -616,6 +907,7 @@ function Dashboard() {
                 </div>
 
                 <span className="task-status">
+
                   {index === 0 ? (
                     <Clock3 size={13} />
                   ) : (
@@ -623,26 +915,40 @@ function Dashboard() {
                   )}
 
                   {task.status}
+
                 </span>
+
               </div>
             );
+
           })}
+
         </div>
+
       </section>
 
-      {/* Recent orders */}
+      {/* RECENT ORDERS */}
+
       <section className="panel orders-panel">
+
         <div className="panel-header orders-header">
+
           <div>
             <h3>Recent Orders</h3>
             <p>Track customer orders and deliveries.</p>
           </div>
 
-          <ArrowUpRight size={19} className="panel-accent-icon" />
+          <ArrowUpRight
+            size={19}
+            className="panel-accent-icon"
+          />
+
         </div>
 
         <div className="table-wrapper">
+
           <table>
+
             <thead>
               <tr>
                 <th>ORDER ID</th>
@@ -654,12 +960,19 @@ function Dashboard() {
             </thead>
 
             <tbody>
+
               {orders.map((order) => (
+
                 <tr key={order.id}>
-                  <td className="order-id">{order.id}</td>
+
+                  <td className="order-id">
+                    {order.id}
+                  </td>
+
                   <td>{order.customer}</td>
                   <td>{order.crop}</td>
                   <td>{order.quantity}</td>
+
                   <td>
                     <span
                       className={`status-badge ${order.status.toLowerCase()}`}
@@ -667,18 +980,28 @@ function Dashboard() {
                       {order.status}
                     </span>
                   </td>
+
                 </tr>
+
               ))}
+
             </tbody>
+
           </table>
+
         </div>
+
       </section>
+
+      {/* DASHBOARD DISCLAIMER */}
 
       <p className="dashboard-disclaimer">
         <Sprout size={15} />
+
         Dashboard preview uses sample values. Connect real farm,
         weather, and soil data before relying on these indicators.
       </p>
+
     </div>
   );
 }

@@ -1,3 +1,4 @@
+import ActivityLog from "./pages/ActivityLog.jsx";
 import {
   BrowserRouter,
   Routes,
@@ -7,8 +8,8 @@ import {
 
 import MainLayout from "./layout/MainLayout.jsx";
 import ProtectedRoute from "./components/auth/ProtectedRoute.jsx";
-import Tasks from "./pages/Tasks";
 
+import Tasks from "./pages/Tasks";
 import Dashboard from "./pages/Dashboard";
 import Crops from "./pages/Crops";
 import Weather from "./pages/Weather";
@@ -21,6 +22,10 @@ import Login from "./pages/Login";
 import Inventory from "./pages/Inventory";
 import Expenses from "./pages/Expenses";
 import Reports from "./pages/Reports";
+import Workers from "./pages/workers/Workers.jsx";
+import Attendance from "./pages/Attendance.jsx";
+import Equipment from "./pages/Equipment.jsx";
+import Maintenance from "./pages/Maintenance.jsx";
 
 import "./App.css";
 
@@ -33,20 +38,28 @@ function App() {
         <Route element={<ProtectedRoute />}>
           <Route path="/" element={<MainLayout />}>
             <Route index element={<Dashboard />} />
+
             <Route path="crops" element={<Crops />} />
             <Route path="weather" element={<Weather />} />
             <Route path="analytics" element={<Analytics />} />
             <Route path="supplies" element={<Supplies />} />
             <Route path="orders" element={<Orders />} />
             <Route path="buyers" element={<Buyers />} />
+            <Route path="workers" element={<Workers />} />
+            <Route path="attendance" element={<Attendance />} />
             <Route path="tasks" element={<Tasks />} />
             <Route path="inventory" element={<Inventory />} />
             <Route path="expenses" element={<Expenses />} />
+            <Route path="equipment" element={<Equipment />} />
+            <Route path="maintenance" element={<Maintenance />} />
             <Route path="reports" element={<Reports />} />
+            <Route path="activity-log" element={<ActivityLog />} />
+
             <Route
               path="harvest-orders"
               element={<HarvestOrders />}
             />
+
             <Route
               path="*"
               element={<Navigate to="/" replace />}
@@ -57,6 +70,5 @@ function App() {
     </BrowserRouter>
   );
 }
-
 
 export default App;

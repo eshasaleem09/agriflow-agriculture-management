@@ -46,9 +46,9 @@ function formatCNIC(value) {
 function Buyers() {
   const dispatch = useDispatch();
 
-  const crops = useSelector((state) => state.crops);
-  const buyers = useSelector((state) => state.buyers);
-  const { user } = useSelector((state) => state.auth);
+  const crops = useSelector((state) => state.crops || []);
+const buyers = useSelector((state) => state.buyers || []);
+const user = useSelector((state) => state.auth?.user);
 
   const isAdmin = user?.role === "Admin";
 
@@ -71,15 +71,17 @@ function Buyers() {
   const [form, setForm] = useState(emptyForm);
 
   const filteredBuyers = buyers.filter((buyer) => {
-    const query = search.toLowerCase();
-    const digits = search.replace(/\D/g, "");
+  const query = search.trim().toLowerCase();
+  const digits = search.replace(/\D/g, "");
 
-    return (
-      (buyer.name || "").toLowerCase().includes(query) ||
-      (buyer.cnic || "").replace(/\D/g, "").includes(digits)
-    );
-  });
+  if (!query) return true;
 
+  return (
+    (buyer.name || "").toLowerCase().includes(query) ||
+    (digits.length > 0 &&
+      (buyer.cnic || "").replace(/\D/g, "").includes(digits))
+  );
+});
   const totalQuantitySold = buyers.reduce(
     (total, buyer) => total + Number(buyer.quantity || 0),
     0
@@ -174,10 +176,10 @@ function Buyers() {
     );
 
     // Validate name: letters and spaces only, at least 3 letters
-    if (
-      !/^[a-zA-Z\s]+$/.test(name) ||
-      name.replace(/\s/g, "").length < 3
-    ) {
+  if (
+  !/^[\p{L}\s.'-]+$/u.test(name) ||
+  name.replace(/[^\p{L}]/gu, "").length < 3
+) {
       setError(
         "Enter a name containing at least 3 letters and spaces only."
       );
@@ -193,7 +195,7 @@ function Buyers() {
     // Prevent duplicate CNIC, except for the buyer being edited
     const duplicate = buyers.some(
       (buyer) =>
-        buyer.id !== editingId &&
+        String(buyer.id) !== String(editingId) &&
         (buyer.cnic || "").replace(/\D/g, "") === digits
     );
 
@@ -230,10 +232,12 @@ function Buyers() {
     // If editing a purchase for the same crop, include its previous
     // quantity when calculating how much stock is available.
     const availableQuantity =
-      existingBuyer && oldCrop?.id === selectedCrop.id
-        ? Number(selectedCrop.quantity) + Number(existingBuyer.quantity)
-        : Number(selectedCrop.quantity);
-
+  existingBuyer &&
+  oldCrop &&
+  String(oldCrop.id) === String(selectedCrop.id)
+    ? Number(selectedCrop.quantity || 0) +
+      Number(existingBuyer.quantity || 0)
+    : Number(selectedCrop.quantity || 0);
     if (quantity > availableQuantity) {
       setError(
         `Only ${availableQuantity.toLocaleString()} kg of ${selectedCrop.name} is available for this purchase.`
@@ -450,7 +454,7 @@ function Buyers() {
                   />
                 ) : (
                   <div className="buyer-avatar">
-                    {buyer.name.charAt(0).toUpperCase()}
+                    {(buyer.name || "?").charAt(0).toUpperCase()}
                   </div>
                 )}
 

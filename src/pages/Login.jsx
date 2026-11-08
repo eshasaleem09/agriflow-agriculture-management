@@ -1,9 +1,8 @@
 import { useState } from "react";
-import { useDispatch } from "react-redux";
+import { useDispatch, useSelector } from "react-redux";
 import { Navigate, useLocation, useNavigate } from "react-router-dom";
 import { Leaf, LockKeyhole, UserRound } from "lucide-react";
 import { login } from "../features/auth/authSlice.js";
-import { useSelector } from "react-redux";
 
 function Login() {
   const dispatch = useDispatch();
@@ -39,12 +38,12 @@ function Login() {
     const selectedUser = demoUsers[role];
 
     if (
-      username.trim() !== selectedUser.username ||
-      password !== selectedUser.password
-    ) {
-      setError("Invalid username or password.");
-      return;
-    }
+  username.trim().toLowerCase() !== selectedUser.username ||
+  password !== selectedUser.password
+) {
+  setError("Invalid username or password.");
+  return;
+}
 
     dispatch(
       login({

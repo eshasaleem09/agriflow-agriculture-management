@@ -19,6 +19,10 @@ import {
   ClipboardList,
   Wallet,
   FileText,
+  UserCog,
+  ClipboardCheck,
+  Tractor,
+Wrench,
 } from "lucide-react";
 
 import { logout } from "../features/auth/authSlice.js";
@@ -59,6 +63,16 @@ const menuItems = [
     icon: Users,
   },
   {
+  label: "Workers & Labour",
+  path: "/workers",
+  icon: UserCog,
+},
+{
+  label: "Attendance & Payroll",
+  path: "/attendance",
+  icon: ClipboardCheck,
+},
+  {
     label: "Harvest & Orders",
     path: "/harvest-orders",
     icon: CalendarDays,
@@ -78,10 +92,25 @@ const menuItems = [
     path: "/expenses",
     icon: Wallet,
   },
-  {
-  label: "Reports & Activity Log",
+ {
+  label: "Reports",
   path: "/reports",
   icon: FileText,
+},
+{
+  label: "Activity Log",
+  path: "/activity-log",
+  icon: ClipboardList,
+},
+{
+  label: "Equipment Management",
+  path: "/equipment",
+  icon: Tractor,
+},
+{
+  label: "Maintenance",
+  path: "/maintenance",
+  icon: Wrench,
 },
 ];
 
@@ -94,9 +123,10 @@ function MainLayout() {
   const { user } = useSelector((state) => state.auth);
 
   function handleLogout() {
-    dispatch(logout());
-    navigate("/login", { replace: true });
-  }
+  dispatch(logout());
+  setIsSidebarOpen(false);
+  navigate("/login", { replace: true });
+}
 
   function closeSidebar() {
     setIsSidebarOpen(false);
@@ -205,7 +235,6 @@ function MainLayout() {
 
             <div className="page-heading">
               <h1>Farm Dashboard</h1>
-
               <p className="breadcrumb">
                 Home / <span>Overview</span>
               </p>

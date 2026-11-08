@@ -31,15 +31,25 @@ function formatCurrency(amount) {
     maximumFractionDigits: 0,
   }).format(amount);
 }
+function getLocalDate() {
+  const now = new Date();
 
+  const year = now.getFullYear();
+  const month = String(now.getMonth() + 1).padStart(2, "0");
+  const day = String(now.getDate()).padStart(2, "0");
+
+  return `${year}-${month}-${day}`;
+}
 function getTaskStatus(task) {
   if (task.status === "Done") {
     return "Done";
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = getLocalDate();
 
-  return task.dueDate < today ? "Overdue" : "Pending";
+  return task.dueDate && task.dueDate < today
+    ? "Overdue"
+    : "Pending";
 }
 
 function escapeCsvValue(value) {
@@ -71,11 +81,11 @@ function downloadCsv(rows, filename) {
 }
 
 function Reports() {
-  const crops = useSelector((state) => state.crops);
-  const tasks = useSelector((state) => state.tasks);
-  const inventory = useSelector((state) => state.inventory);
-  const expenses = useSelector((state) => state.expenses);
-  const activity = useSelector((state) => state.activity);
+const crops = useSelector((state) => state.crops || []);
+const tasks = useSelector((state) => state.tasks || []);
+const inventory = useSelector((state) => state.inventory || []);
+const expenses = useSelector((state) => state.expenses || []);
+const activity = useSelector((state) => state.activity || []);
 
   const [selectedMonth, setSelectedMonth] = useState(getCurrentMonth());
 
@@ -108,18 +118,25 @@ function Reports() {
   );
 
   const totalIncome = monthlyExpenses
-    .filter((item) => item.type === "Income")
-    .reduce((total, item) => total + item.amount, 0);
-
-  const totalExpenses = monthlyExpenses
-    .filter((item) => item.type === "Expense")
-    .reduce((total, item) => total + item.amount, 0);
-
-  const netProfit = totalIncome - totalExpenses;
-
-  const lowStockItems = inventory.filter(
-    (item) => item.quantity <= item.minStock
+  .filter((item) => item.type === "Income")
+  .reduce(
+    (total, item) => total + (Number(item.amount) || 0),
+    0
   );
+
+const totalExpenses = monthlyExpenses
+  .filter((item) => item.type === "Expense")
+  .reduce(
+    (total, item) => total + (Number(item.amount) || 0),
+    0
+  );
+
+const netProfit = totalIncome - totalExpenses;
+
+ const lowStockItems = inventory.filter(
+  (item) =>
+    Number(item.quantity) <= Number(item.minStock)
+);
 
   const pendingTasks = monthlyTasks.filter(
     (task) => getTaskStatus(task) === "Pending"
@@ -168,7 +185,7 @@ function Reports() {
     // Monthly financial records
     monthlyExpenses.forEach((item) => {
       const crop = crops.find(
-        (entry) => Number(entry.id) === Number(item.cropId)
+        (entry) => String(entry.id) === String(item.cropId)
       );
 
       rows.push([
@@ -211,7 +228,7 @@ function Reports() {
     // Tasks due in the selected month
     monthlyTasks.forEach((task) => {
       const crop = crops.find(
-        (entry) => Number(entry.id) === Number(task.cropId)
+        (entry) => String(entry.id) === String(task.cropId)
       );
 
       rows.push([

@@ -5,6 +5,11 @@ import {
   updateCrop,
   deleteCrop,
 } from "../features/crops/cropsSlice.js";
+import {
+  getHealthStatus,
+  getHealthClass,
+  validateCrop,
+} from "../features/crops/cropsUtils.js";
 
 import {
   Sprout,
@@ -19,26 +24,14 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
-// Determine crop health status
-function getHealthStatus(health) {
-  if (health >= 70) return "Healthy";
-  if (health >= 40) return "Needs Attention";
-  return "Critical";
-}
 
-// CSS class based on crop health
-function getHealthClass(health) {
-  if (health >= 70) return "healthy";
-  if (health >= 40) return "attention";
-  return "critical";
-}
 
 function Crops() {
   const dispatch = useDispatch();
 
   // Read data from Redux
-  const crops = useSelector((state) => state.crops);
-  const { user } = useSelector((state) => state.auth);
+ const crops = useSelector((state) => state.crops || []);
+const user = useSelector((state) => state.auth?.user);
 
   // Only Admin can edit and delete crops
   const isAdmin = user?.role === "Admin";
@@ -63,9 +56,9 @@ function Crops() {
     const result = crops.filter((crop) => {
       const searchTerm = search.toLowerCase();
 
-      const matchesSearch =
-        crop.name.toLowerCase().includes(searchTerm) ||
-        crop.field.toLowerCase().includes(searchTerm);
+     const matchesSearch =
+  (crop.name || "").toLowerCase().includes(searchTerm) ||
+  (crop.field || "").toLowerCase().includes(searchTerm);
 
       const matchesHealth =
         healthFilter === "All" ||
@@ -141,11 +134,17 @@ function Crops() {
       setFormError("You do not have permission to edit crops.");
       return;
     }
+    const validationErrors = validateCrop(form, crops, editingId);
 
-    const name = form.name.trim();
-    const field = form.field.trim();
-    const quantity = Number(form.quantity);
-    const health = Number(form.health);
+if (Object.keys(validationErrors).length > 0) {
+  setFormError(Object.values(validationErrors)[0]);
+  return;
+}
+
+const name = form.name.trim();
+const field = form.field.trim();
+const quantity = Number(form.quantity);
+const health = Number(form.health);
 
     if (!name || !field || form.quantity === "") {
       setFormError("Please fill in all fields.");

@@ -1,103 +1,230 @@
 import { addActivity } from "../features/activity/activitySlice.js";
 
 const trackedActions = {
+  // CROPS
   "crops/addCrop": {
     entity: "Crop",
-    stateKey: "crops",
+    statePath: "crops",
     verb: "Added",
   },
   "crops/updateCrop": {
     entity: "Crop",
-    stateKey: "crops",
+    statePath: "crops",
     verb: "Updated",
   },
   "crops/deleteCrop": {
     entity: "Crop",
-    stateKey: "crops",
+    statePath: "crops",
     verb: "Deleted",
   },
 
+  // TASKS
   "tasks/addTask": {
     entity: "Farm task",
-    stateKey: "tasks",
+    statePath: "tasks",
     verb: "Added",
   },
   "tasks/updateTask": {
     entity: "Farm task",
-    stateKey: "tasks",
+    statePath: "tasks",
     verb: "Updated",
   },
   "tasks/deleteTask": {
     entity: "Farm task",
-    stateKey: "tasks",
+    statePath: "tasks",
     verb: "Deleted",
   },
   "tasks/markTaskDone": {
     entity: "Farm task",
-    stateKey: "tasks",
+    statePath: "tasks",
     verb: "Completed",
   },
 
+  // INVENTORY
   "inventory/addInventoryItem": {
     entity: "Inventory item",
-    stateKey: "inventory",
+    statePath: "inventory",
     verb: "Added",
   },
   "inventory/updateInventoryItem": {
     entity: "Inventory item",
-    stateKey: "inventory",
+    statePath: "inventory",
     verb: "Updated",
   },
   "inventory/deleteInventoryItem": {
     entity: "Inventory item",
-    stateKey: "inventory",
+    statePath: "inventory",
     verb: "Deleted",
   },
   "inventory/recordInventoryUsage": {
     entity: "Inventory item",
-    stateKey: "inventory",
+    statePath: "inventory",
     verb: "Recorded usage",
   },
 
+  // EXPENSES
   "expenses/addExpense": {
     entity: "Financial record",
-    stateKey: "expenses",
+    statePath: "expenses",
     verb: "Added",
   },
   "expenses/updateExpense": {
     entity: "Financial record",
-    stateKey: "expenses",
+    statePath: "expenses",
     verb: "Updated",
   },
   "expenses/deleteExpense": {
     entity: "Financial record",
-    stateKey: "expenses",
+    statePath: "expenses",
     verb: "Deleted",
   },
+
+  // BUYERS
   "buyers/addBuyer": {
-  entity: "Buyer",
-  stateKey: "buyers",
-  verb: "Added",
-},
+    entity: "Buyer",
+    statePath: "buyers",
+    verb: "Added",
+  },
+  "buyers/updateBuyer": {
+    entity: "Buyer",
+    statePath: "buyers",
+    verb: "Updated",
+  },
+  "buyers/deleteBuyer": {
+    entity: "Buyer",
+    statePath: "buyers",
+    verb: "Deleted",
+  },
 
-"buyers/updateBuyer": {
-  entity: "Buyer",
-  stateKey: "buyers",
-  verb: "Updated",
-},
+  // WORKERS
+  "workers/addWorker": {
+    entity: "Worker",
+    statePath: "workers",
+    verb: "Added",
+  },
+  "workers/updateWorker": {
+    entity: "Worker",
+    statePath: "workers",
+    verb: "Updated",
+  },
+  "workers/deleteWorker": {
+    entity: "Worker",
+    statePath: "workers",
+    verb: "Deleted",
+  },
+  "workers/updateWorkerStatus": {
+    entity: "Worker",
+    statePath: "workers",
+    verb: "Updated status of",
+  },
 
-"buyers/deleteBuyer": {
-  entity: "Buyer",
-  stateKey: "buyers",
-  verb: "Deleted",
-},
+  // ATTENDANCE
+  "attendance/addAttendance": {
+    entity: "Attendance record",
+    statePath: "attendance",
+    verb: "Added",
+  },
+  "attendance/updateAttendance": {
+    entity: "Attendance record",
+    statePath: "attendance",
+    verb: "Updated",
+  },
+  "attendance/deleteAttendance": {
+    entity: "Attendance record",
+    statePath: "attendance",
+    verb: "Deleted",
+  },
+
+  // EQUIPMENT
+  "equipment/addEquipment": {
+    entity: "Equipment",
+    statePath: "equipment",
+    verb: "Added",
+  },
+  "equipment/updateEquipment": {
+    entity: "Equipment",
+    statePath: "equipment",
+    verb: "Updated",
+  },
+  "equipment/deleteEquipment": {
+    entity: "Equipment",
+    statePath: "equipment",
+    verb: "Deleted",
+  },
+  "equipment/updateEquipmentStatus": {
+    entity: "Equipment",
+    statePath: "equipment",
+    verb: "Updated status of",
+  },
+
+  // MAINTENANCE
+  "maintenance/addMaintenance": {
+    entity: "Maintenance record",
+    statePath: "maintenance",
+    verb: "Added",
+  },
+  "maintenance/updateMaintenance": {
+    entity: "Maintenance record",
+    statePath: "maintenance",
+    verb: "Updated",
+  },
+  "maintenance/deleteMaintenance": {
+    entity: "Maintenance record",
+    statePath: "maintenance",
+    verb: "Deleted",
+  },
+
+  // HARVEST SCHEDULE
+  "harvest/addHarvest": {
+    entity: "Harvest schedule",
+    statePath: "harvest.schedule",
+    verb: "Added",
+  },
+  "harvest/updateHarvest": {
+    entity: "Harvest schedule",
+    statePath: "harvest.schedule",
+    verb: "Updated",
+  },
+  "harvest/deleteHarvest": {
+    entity: "Harvest schedule",
+    statePath: "harvest.schedule",
+    verb: "Deleted",
+  },
+  "harvest/completeHarvest": {
+    entity: "Harvest schedule",
+    statePath: "harvest.schedule",
+    verb: "Completed",
+  },
+
+  // ORDERS
+  "harvest/addOrder": {
+    entity: "Customer order",
+    statePath: "harvest.orders",
+    verb: "Added",
+  },
+  "harvest/updateOrder": {
+    entity: "Customer order",
+    statePath: "harvest.orders",
+    verb: "Updated",
+  },
+  "harvest/deleteOrder": {
+    entity: "Customer order",
+    statePath: "harvest.orders",
+    verb: "Deleted",
+  },
+};
+const getItems = (state, statePath) => {
+  return statePath
+    .split(".")
+    .reduce((current, key) => current?.[key], state) || [];
 };
 
 export const activityLogger = (storeAPI) => (next) => (action) => {
   const config = trackedActions[action.type];
 
-  // Let Redux process the original action first.
   const previousState = storeAPI.getState();
+
+  // Process the original Redux action first.
   const result = next(action);
 
   if (!config) {
@@ -111,10 +238,12 @@ export const activityLogger = (storeAPI) => (next) => (action) => {
     payload && typeof payload === "object" ? payload : null;
 
   const entityId =
-    payloadObject?.id !== undefined ? payloadObject.id : payload;
+    payloadObject?.id !== undefined
+      ? payloadObject.id
+      : payload;
 
-  const previousItems = previousState[config.stateKey] || [];
-  const currentItems = currentState[config.stateKey] || [];
+  const previousItems = getItems(previousState, config.statePath);
+  const currentItems = getItems(currentState, config.statePath);
 
   const previousEntity = previousItems.find(
     (item) => String(item.id) === String(entityId)
@@ -127,17 +256,18 @@ export const activityLogger = (storeAPI) => (next) => (action) => {
   const entityName =
     payloadObject?.name ||
     payloadObject?.title ||
-    payloadObject?.category ||
+    payloadObject?.customer ||
     currentEntity?.name ||
     currentEntity?.title ||
-    currentEntity?.category ||
+    currentEntity?.customer ||
     previousEntity?.name ||
     previousEntity?.title ||
-    previousEntity?.category ||
+    previousEntity?.customer ||
     String(entityId ?? config.entity);
 
   let details = `${config.verb} ${config.entity.toLowerCase()}: "${entityName}"`;
 
+  // Inventory usage details
   if (action.type === "inventory/recordInventoryUsage") {
     const unit = currentEntity?.unit || previousEntity?.unit || "";
 
@@ -148,6 +278,12 @@ export const activityLogger = (storeAPI) => (next) => (action) => {
     }
   }
 
+  // Attendance details
+  if (action.type === "attendance/addAttendance") {
+    details = `Added attendance record for worker ID: ${payload.workerId}`;
+  }
+
+  // Current logged-in user
   const user = currentState.auth?.user;
 
   storeAPI.dispatch(

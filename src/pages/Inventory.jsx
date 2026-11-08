@@ -1,3 +1,9 @@
+import {
+  INVENTORY_CATEGORIES,
+  INVENTORY_UNITS,
+  validateInventoryItem,
+  validateInventoryUsage,
+} from "../features/inventory/inventoryUtils.js";
 import { useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 
@@ -36,8 +42,8 @@ const UNITS = ["kg", "bags", "litres", "units", "bottles", "packets"];
 function Inventory() {
   const dispatch = useDispatch();
 
-  const inventory = useSelector((state) => state.inventory);
-  const { user } = useSelector((state) => state.auth);
+  const inventory = useSelector((state) => state.inventory || []);
+const user = useSelector((state) => state.auth?.user);
 
   const isAdmin = user?.role === "Admin";
 
@@ -85,10 +91,9 @@ function Inventory() {
     return inventory
       .filter((item) => {
         const term = search.trim().toLowerCase();
-
-        const matchesSearch =
-          item.name.toLowerCase().includes(term) ||
-          item.category.toLowerCase().includes(term);
+const matchesSearch =
+  (item.name || "").toLowerCase().includes(term) ||
+  (item.category || "").toLowerCase().includes(term);
 
         const matchesCategory =
           categoryFilter === "All" ||
@@ -138,7 +143,18 @@ function Inventory() {
       return;
     }
 
-    const name = form.name.trim();
+    const validationErrors = validateInventoryItem(
+  form,
+  inventory,
+  editingId
+);
+
+const name = form.name.trim();
+
+if (Object.keys(validationErrors).length > 0) {
+  setError(Object.values(validationErrors)[0]);
+  return;
+}
     const quantity = Number(form.quantity);
     const minStock = Number(form.minStock);
 
@@ -222,16 +238,15 @@ function Inventory() {
 
     const amount = Number(usageForm.amount);
 
-    if (
-      !Number.isFinite(amount) ||
-      amount <= 0 ||
-      amount > item.quantity
-    ) {
-      setError(
-        `Enter a quantity greater than zero and no more than ${item.quantity} ${item.unit}.`
-      );
-      return;
-    }
+const usageError = validateInventoryUsage(
+  usageForm.amount,
+  item.quantity
+);
+
+if (usageError) {
+  setError(usageError);
+  return;
+}
 
     dispatch(
       recordInventoryUsage({

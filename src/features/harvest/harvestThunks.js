@@ -72,7 +72,11 @@ export const deleteOrderWithStock = (orderId) => (
     };
   }
 
-  if (order.stockDeducted === true) {
+  // Restore stock only if the order was not delivered
+  if (
+    order.stockDeducted === true &&
+    order.status !== "Delivered"
+  ) {
     const crop = state.crops.find(
       (item) => item.name === order.crop
     );
@@ -94,10 +98,14 @@ export const deleteOrderWithStock = (orderId) => (
     );
   }
 
+  // Delete the order
   dispatch(deleteOrder(orderId));
 
   return {
     ok: true,
-    message: `${order.id} deleted successfully.`,
+    message:
+      order.status === "Delivered"
+        ? `${order.id} deleted successfully. Delivered stock was not restored.`
+        : `${order.id} deleted successfully. Stock was restored.`,
   };
 };
