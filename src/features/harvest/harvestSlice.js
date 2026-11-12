@@ -58,6 +58,9 @@ const harvestSlice = createSlice({
   initialState,
 
   reducers: {
+    setOrders: (state, action) => {
+  state.orders = action.payload;
+},
     addHarvest: (state, action) => {
       state.schedule.push(action.payload);
     },
@@ -66,8 +69,7 @@ const harvestSlice = createSlice({
       const index = state.schedule.findIndex(
         (item) => item.id === action.payload.id
       );
-
-      if (index !== -1) {
+    if (index !== -1) {
         state.schedule[index] = action.payload;
       }
     },
@@ -119,6 +121,7 @@ export const {
   addOrder,
   updateOrder,
   deleteOrder,
+  setOrders,
 } = harvestSlice.actions;
 
 export const selectHarvestSchedule = (state) =>

@@ -1,111 +1,138 @@
-import { addOrder, deleteOrder } from "./harvestSlice.js";
-import { updateCrop } from "../crops/cropsSlice.js";
+import { apiClient } from "../../app/redux/api/index.js";
+import {
+  addOrder,
+  updateOrder,
+  deleteOrder,
+  setOrders,
+} from "./harvestSlice.js";
 
-// Create an order and deduct crop stock.
-export const createOrderWithStock = (order) => (dispatch, getState) => {
-  const state = getState();
-  const crop = state.crops.find(
-    (item) => item.name === order.crop
-  );
+// Refresh crop quantities from PostgreSQL
+const refreshCrops = async (dispatch) => {
+  const response = await apiClient.get("/crops");
 
-  const quantity = Number(order.quantity);
+  const crops = response.data.data.map((crop) => ({
+    ...crop,
+    quantity: Number(crop.expectedQty || 0),
+    health: Number(crop.healthScore || 0),
+  }));
 
-  if (!crop) {
-    return {
-      ok: false,
-      message: "The selected crop could not be found.",
-    };
-  }
-
-  if (!Number.isFinite(quantity) || quantity <= 0) {
-    return {
-      ok: false,
-      message: "Please enter a valid order quantity.",
-    };
-  }
-
-  const availableStock = Number(crop.quantity || 0);
-
-  if (quantity > availableStock) {
-    return {
-      ok: false,
-      message: `Insufficient ${crop.name} stock. Available: ${availableStock} kg.`,
-    };
-  }
-
-  dispatch(
-    updateCrop({
-      ...crop,
-      quantity: availableStock - quantity,
-    })
-  );
-
-  dispatch(
-    addOrder({
-      ...order,
-      quantity,
-      stockDeducted: true,
-    })
-  );
-
-  return {
-    ok: true,
-    message: "Order created and crop stock updated successfully.",
-  };
+  dispatch({
+    type: "app/HYDRATE_STATE",
+    payload: { crops },
+  });
 };
 
-// Delete an order and restore its allocated stock.
-export const deleteOrderWithStock = (orderId) => (
+// FETCH ORDERS
+export const fetchOrders = () => async (dispatch) => {
+  try {
+    const response = await apiClient.get("/orders");
+    dispatch(setOrders(response.data.data || []));
+
+    return { ok: true };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error.response?.data?.message || "Could not load orders.",
+    };
+  }
+};
+
+// CREATE ORDER
+export const createOrderWithStock = (order) => async (
   dispatch,
   getState
 ) => {
-  const state = getState();
-
-  const order = state.harvest.orders.find(
-    (item) => item.id === orderId
-  );
-
-  if (!order) {
-    return {
-      ok: false,
-      message: "Order not found.",
-    };
-  }
-
-  // Restore stock only if the order was not delivered
-  if (
-    order.stockDeducted === true &&
-    order.status !== "Delivered"
-  ) {
-    const crop = state.crops.find(
+  try {
+    const crop = getState().crops.find(
       (item) => item.name === order.crop
     );
+
+    const quantity = Number(order.quantity);
 
     if (!crop) {
       return {
         ok: false,
-        message: `Cannot restore stock because ${order.crop} was not found. The order was not deleted.`,
+        message: "The selected crop could not be found.",
       };
     }
 
-    dispatch(
-      updateCrop({
-        ...crop,
-        quantity:
-          Number(crop.quantity || 0) +
-          Number(order.quantity || 0),
-      })
-    );
+    if (!Number.isFinite(quantity) || quantity <= 0) {
+      return {
+        ok: false,
+        message: "Please enter a valid order quantity.",
+      };
+    }
+
+    const response = await apiClient.post("/orders", {
+      customer: order.customer,
+      cropId: crop.id,
+      quantity,
+      status: order.status || "Pending",
+      orderDate: order.orderDate || new Date().toISOString().slice(0, 10),
+    });
+
+    dispatch(addOrder(response.data.data));
+
+    await refreshCrops(dispatch);
+
+    return {
+      ok: true,
+      message: response.data.message,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error.response?.data?.message || "Could not create order.",
+    };
   }
+};
 
-  // Delete the order
-  dispatch(deleteOrder(orderId));
+// UPDATE ORDER STATUS
+export const updateOrderOnServer = (orderId, status) => async (
+  dispatch
+) => {
+  try {
+    const response = await apiClient.put(`/orders/${orderId}`, {
+      status,
+    });
 
-  return {
-    ok: true,
-    message:
-      order.status === "Delivered"
-        ? `${order.id} deleted successfully. Delivered stock was not restored.`
-        : `${order.id} deleted successfully. Stock was restored.`,
-  };
+    dispatch(updateOrder(response.data.data));
+
+    return {
+      ok: true,
+      message: response.data.message,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error.response?.data?.message || "Could not update order.",
+    };
+  }
+};
+
+// DELETE ORDER
+export const deleteOrderWithStock = (orderId) => async (
+  dispatch
+) => {
+  try {
+    const response = await apiClient.delete(`/orders/${orderId}`);
+
+    dispatch(deleteOrder(orderId));
+
+    await refreshCrops(dispatch);
+
+    return {
+      ok: true,
+      message: response.data.message,
+    };
+  } catch (error) {
+    return {
+      ok: false,
+      message:
+        error.response?.data?.message || "Could not delete order.",
+    };
+  }
 };

@@ -2,10 +2,10 @@ import { createSlice } from "@reduxjs/toolkit";
 
 const tasksSlice = createSlice({
   name: "tasks",
-
   initialState: [],
-
   reducers: {
+    setTasks: (state, action) => action.payload,
+
     addTask: (state, action) => {
       state.push(action.payload);
     },
@@ -21,12 +21,14 @@ const tasksSlice = createSlice({
     },
 
     deleteTask: (state, action) => {
-      return state.filter((task) => task.id !== action.payload);
+      return state.filter(
+        (task) => task.id !== action.payload
+      );
     },
 
     markTaskDone: (state, action) => {
       const task = state.find(
-        (item) => item.id === action.payload
+        (task) => task.id === action.payload
       );
 
       if (task) {
@@ -38,6 +40,7 @@ const tasksSlice = createSlice({
 });
 
 export const {
+  setTasks,
   addTask,
   updateTask,
   deleteTask,

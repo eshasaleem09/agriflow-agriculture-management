@@ -1,24 +1,24 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import {
+  Plus,
+  TrendingUp,
+  TrendingDown,
+  Wallet,
+  Sprout,
+  ReceiptText,
+  Pencil,
+  Trash2,
+  IndianRupee,
+  X,
+} from "lucide-react";
 
 import {
   addExpense,
   updateExpense,
   deleteExpense,
+  setExpenses,
 } from "../features/expenses/expensesSlice.js";
-
-import {
-  Wallet,
-  Plus,
-  TrendingUp,
-  TrendingDown,
-  IndianRupee,
-  Pencil,
-  Trash2,
-  X,
-  Sprout,
-  ReceiptText,
-} from "lucide-react";
 
 function getLocalDate() {
   const now = new Date();

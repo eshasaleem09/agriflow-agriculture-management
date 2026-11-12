@@ -1,6 +1,8 @@
 import { useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+
 import { clearActivity } from "../features/activity/activitySlice";
+
 import {
   Activity,
   Search,
@@ -8,6 +10,12 @@ import {
   Clock,
   User,
   ClipboardList,
+  Plus,
+  Pencil,
+  CheckCircle2,
+  Package,
+  Filter,
+  X,
 } from "lucide-react";
 
 export default function ActivityLog() {
@@ -20,7 +28,8 @@ export default function ActivityLog() {
   const [actionFilter, setActionFilter] = useState("All");
   const [roleFilter, setRoleFilter] = useState("All");
 
-  const isAdmin = user?.role?.toLowerCase() === "admin";
+  const isAdmin =
+    String(user?.role || "").toLowerCase() === "admin";
 
   const filteredActivities = useMemo(() => {
     return activities.filter((item) => {
@@ -28,15 +37,19 @@ export default function ActivityLog() {
 
       const matchesSearch =
         !query ||
-        (item.user || "").toLowerCase().includes(query) ||
-        (item.entity || "").toLowerCase().includes(query) ||
-        (item.details || "").toLowerCase().includes(query);
+        String(item.user || "").toLowerCase().includes(query) ||
+        String(item.entity || "").toLowerCase().includes(query) ||
+        String(item.details || "").toLowerCase().includes(query);
 
       const matchesAction =
-        actionFilter === "All" || item.action === actionFilter;
+        actionFilter === "All" ||
+        String(item.action || "").toLowerCase() ===
+          actionFilter.toLowerCase();
 
       const matchesRole =
-        roleFilter === "All" || item.role === roleFilter;
+        roleFilter === "All" ||
+        String(item.role || "").toLowerCase() ===
+          roleFilter.toLowerCase();
 
       return matchesSearch && matchesAction && matchesRole;
     });
@@ -46,7 +59,7 @@ export default function ActivityLog() {
     if (!isAdmin) return;
 
     const confirmed = window.confirm(
-      "Are you sure you want to clear all activity records? This cannot be undone."
+      "Are you sure you want to clear all activity records?"
     );
 
     if (confirmed) {
@@ -67,61 +80,511 @@ export default function ActivityLog() {
     });
   };
 
+  const getActionClass = (action) => {
+    const value = String(action || "").toLowerCase();
+
+    if (value.includes("add") || value.includes("creat")) {
+      return "activity-badge-added";
+    }
+
+    if (value.includes("updat") || value.includes("edit")) {
+      return "activity-badge-updated";
+    }
+
+    if (value.includes("delet") || value.includes("remov")) {
+      return "activity-badge-deleted";
+    }
+
+    if (value.includes("complet")) {
+      return "activity-badge-completed";
+    }
+
+    return "activity-badge-default";
+  };
+
+  const getActionIcon = (action) => {
+    const value = String(action || "").toLowerCase();
+
+    if (value.includes("add") || value.includes("creat")) {
+      return <Plus size={17} />;
+    }
+
+    if (value.includes("updat") || value.includes("edit")) {
+      return <Pencil size={17} />;
+    }
+
+    if (value.includes("delet") || value.includes("remov")) {
+      return <Trash2 size={17} />;
+    }
+
+    if (value.includes("complet")) {
+      return <CheckCircle2 size={17} />;
+    }
+
+    return <Activity size={17} />;
+  };
+
+  const activeUsers = new Set(
+    activities.map((item) => item.user).filter(Boolean)
+  ).size;
+
+  const todayActivities = activities.filter((item) => {
+    if (!item.timestamp) return false;
+
+    const date = new Date(item.timestamp);
+    const today = new Date();
+
+    return date.toDateString() === today.toDateString();
+  }).length;
+
   return (
     <div className="page-container activity-page">
-      <div className="page-header">
+
+      <style>{`
+
+        .activity-page {
+          padding-bottom: 35px;
+        }
+
+        .activity-heading {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          gap: 20px;
+          flex-wrap: wrap;
+          margin-bottom: 28px;
+        }
+
+        .activity-heading h1 {
+          font-size: 28px;
+          font-weight: 750;
+          margin: 0 0 8px;
+        }
+
+        .activity-heading p {
+          margin: 0;
+          opacity: .65;
+          font-size: 14px;
+        }
+
+        .activity-clear-btn {
+          display: inline-flex;
+          align-items: center;
+          justify-content: center;
+          gap: 9px;
+          padding: 11px 17px;
+          border: none;
+          border-radius: 10px;
+          background: #dc4444;
+          color: white;
+          font-weight: 600;
+          cursor: pointer;
+          transition: .2s;
+        }
+
+        .activity-clear-btn:hover {
+          background: #bd2929;
+          transform: translateY(-2px);
+        }
+
+        .activity-stats {
+          display: grid;
+          grid-template-columns: repeat(3, minmax(0, 1fr));
+          gap: 18px;
+          margin-bottom: 25px;
+        }
+
+        .activity-stat-card {
+          display: flex;
+          align-items: center;
+          gap: 17px;
+          padding: 22px;
+          border-radius: 15px;
+          border: 1px solid var(--border-color, rgba(128,128,128,.2));
+          background: var(--card-bg, rgba(128,128,128,.04));
+          transition: .2s;
+        }
+
+        .activity-stat-card:hover {
+          transform: translateY(-3px);
+        }
+
+        .activity-stat-icon {
+          width: 49px;
+          height: 49px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 13px;
+          flex-shrink: 0;
+        }
+
+        .activity-stat-icon.purple {
+          background: rgba(139,92,246,.13);
+          color: #a78bfa;
+        }
+
+        .activity-stat-icon.blue {
+          background: rgba(59,130,246,.13);
+          color: #60a5fa;
+        }
+
+        .activity-stat-icon.orange {
+          background: rgba(249,115,22,.13);
+          color: #fb923c;
+        }
+
+        .activity-stat-card h3 {
+          font-size: 25px;
+          font-weight: 750;
+          margin: 0 0 4px;
+        }
+
+        .activity-stat-card p {
+          font-size: 13px;
+          opacity: .65;
+          margin: 0;
+        }
+
+        .activity-toolbar {
+          display: flex;
+          gap: 13px;
+          align-items: center;
+          flex-wrap: wrap;
+          padding: 17px;
+          border: 1px solid var(--border-color, rgba(128,128,128,.2));
+          background: var(--card-bg, rgba(128,128,128,.04));
+          border-radius: 14px;
+          margin-bottom: 22px;
+        }
+
+        .activity-search {
+          flex: 1;
+          min-width: 220px;
+          position: relative;
+        }
+
+        .activity-search svg {
+          position: absolute;
+          left: 13px;
+          top: 50%;
+          transform: translateY(-50%);
+          opacity: .55;
+        }
+
+        .activity-search input,
+        .activity-toolbar select {
+          width: 100%;
+          height: 43px;
+          border: 1px solid var(--border-color, rgba(128,128,128,.25));
+          background: var(--input-bg, transparent);
+          color: inherit;
+          border-radius: 9px;
+          outline: none;
+          font-size: 13px;
+        }
+
+        .activity-search input {
+          padding: 0 38px;
+        }
+
+        .activity-toolbar select {
+          width: 155px;
+          padding: 0 12px;
+        }
+
+        .activity-search input:focus,
+        .activity-toolbar select:focus {
+          border-color: #8b5cf6;
+        }
+
+        .activity-reset {
+          width: 40px;
+          height: 40px;
+          border: 1px solid var(--border-color, rgba(128,128,128,.25));
+          border-radius: 9px;
+          background: transparent;
+          color: inherit;
+          cursor: pointer;
+          display: flex;
+          justify-content: center;
+          align-items: center;
+        }
+
+        .activity-section {
+          border: 1px solid var(--border-color, rgba(128,128,128,.2));
+          background: var(--card-bg, rgba(128,128,128,.04));
+          border-radius: 15px;
+          overflow: hidden;
+        }
+
+        .activity-section-header {
+          display: flex;
+          align-items: center;
+          justify-content: space-between;
+          padding: 20px 22px;
+          border-bottom: 1px solid var(--border-color, rgba(128,128,128,.2));
+          gap: 12px;
+        }
+
+        .activity-section-header h2 {
+          font-size: 17px;
+          margin: 0;
+          font-weight: 700;
+        }
+
+        .activity-count {
+          font-size: 12px;
+          padding: 6px 11px;
+          border-radius: 20px;
+          background: rgba(139,92,246,.13);
+          color: #a78bfa;
+          font-weight: 650;
+        }
+
+        .activity-timeline {
+          padding: 5px 22px;
+        }
+
+        .activity-row {
+          display: flex;
+          align-items: flex-start;
+          gap: 16px;
+          padding: 20px 0;
+          border-bottom: 1px solid var(--border-color, rgba(128,128,128,.15));
+        }
+
+        .activity-row:last-child {
+          border-bottom: none;
+        }
+
+        .activity-row-icon {
+          width: 41px;
+          height: 41px;
+          flex-shrink: 0;
+          border-radius: 12px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          background: rgba(139,92,246,.13);
+          color: #a78bfa;
+        }
+
+        .activity-row-main {
+          flex: 1;
+          min-width: 0;
+        }
+
+        .activity-row-main h3 {
+          font-size: 14px;
+          font-weight: 650;
+          margin: 2px 0 10px;
+          line-height: 1.5;
+          overflow-wrap: anywhere;
+        }
+
+        .activity-row-meta {
+          display: flex;
+          gap: 13px;
+          flex-wrap: wrap;
+          align-items: center;
+          font-size: 12px;
+          opacity: .7;
+        }
+
+        .activity-row-meta span {
+          display: inline-flex;
+          align-items: center;
+          gap: 5px;
+        }
+
+        .activity-date {
+          display: block;
+          margin-top: 10px;
+          font-size: 11px;
+          opacity: .55;
+        }
+
+        .activity-action-badge {
+          flex-shrink: 0;
+          padding: 7px 11px;
+          border-radius: 20px;
+          font-size: 11px;
+          font-weight: 700;
+          white-space: nowrap;
+        }
+
+        .activity-badge-added {
+          color: #22c55e;
+          background: rgba(34,197,94,.12);
+        }
+
+        .activity-badge-updated {
+          color: #60a5fa;
+          background: rgba(59,130,246,.12);
+        }
+
+        .activity-badge-deleted {
+          color: #f87171;
+          background: rgba(239,68,68,.12);
+        }
+
+        .activity-badge-completed {
+          color: #a78bfa;
+          background: rgba(139,92,246,.12);
+        }
+
+        .activity-badge-default {
+          color: #f59e0b;
+          background: rgba(245,158,11,.12);
+        }
+
+        .activity-empty {
+          padding: 65px 20px;
+          text-align: center;
+        }
+
+        .activity-empty-icon {
+          width: 65px;
+          height: 65px;
+          margin: 0 auto 17px;
+          display: flex;
+          align-items: center;
+          justify-content: center;
+          border-radius: 18px;
+          background: rgba(139,92,246,.12);
+          color: #a78bfa;
+        }
+
+        .activity-empty h3 {
+          margin: 0 0 8px;
+          font-size: 17px;
+        }
+
+        .activity-empty p {
+          margin: 0;
+          font-size: 13px;
+          opacity: .6;
+        }
+
+        @media(max-width: 750px) {
+          .activity-stats {
+            grid-template-columns: 1fr;
+          }
+
+          .activity-toolbar {
+            flex-direction: column;
+            align-items: stretch;
+          }
+
+          .activity-search {
+            width: 100%;
+          }
+
+          .activity-toolbar select {
+            width: 100%;
+          }
+
+          .activity-reset {
+            width: 100%;
+          }
+        }
+
+        @media(max-width: 480px) {
+          .activity-row {
+            flex-wrap: wrap;
+          }
+
+          .activity-action-badge {
+            margin-left: 57px;
+          }
+
+          .activity-heading h1 {
+            font-size: 23px;
+          }
+
+          .activity-section-header {
+            padding: 16px;
+          }
+
+          .activity-timeline {
+            padding: 5px 15px;
+          }
+        }
+
+      `}</style>
+
+      {/* HEADER */}
+
+      <div className="activity-heading">
         <div>
           <h1>Activity Log</h1>
-          <p>Track recent activities and changes across your farm.</p>
+          <p>
+            Monitor and track all activities across your farm.
+          </p>
         </div>
 
         {isAdmin && activities.length > 0 && (
           <button
             type="button"
-            className="btn btn-danger"
+            className="activity-clear-btn"
             onClick={handleClearActivity}
           >
             <Trash2 size={16} />
-            Clear Activity
+            Clear History
           </button>
         )}
       </div>
 
-      <div className="stats-grid">
-        <div className="stat-card">
-          <Activity size={22} />
+      {/* STATISTICS */}
+
+      <div className="activity-stats">
+
+        <div className="activity-stat-card">
+          <div className="activity-stat-icon purple">
+            <Activity size={23} />
+          </div>
+
           <div>
             <h3>{activities.length}</h3>
             <p>Total Activities</p>
           </div>
         </div>
 
-        <div className="stat-card">
-          <User size={22} />
+        <div className="activity-stat-card">
+          <div className="activity-stat-icon blue">
+            <User size={23} />
+          </div>
+
           <div>
-            <h3>
-              {new Set(activities.map((item) => item.user)).size}
-            </h3>
+            <h3>{activeUsers}</h3>
             <p>Active Users</p>
           </div>
         </div>
 
-        <div className="stat-card">
-          <Clock size={22} />
+        <div className="activity-stat-card">
+          <div className="activity-stat-icon orange">
+            <Clock size={23} />
+          </div>
+
           <div>
-            <h3>{activities.length ? "Recorded" : "None"}</h3>
-            <p>Activity History</p>
+            <h3>{todayActivities}</h3>
+            <p>Today's Activities</p>
           </div>
         </div>
+
       </div>
 
-      <div className="activity-filters">
-        <div className="search-box">
-          <Search size={18} />
+      {/* FILTERS */}
+
+      <div className="activity-toolbar">
+
+        <div className="activity-search">
+          <Search size={17} />
 
           <input
             type="text"
-            placeholder="Search by user, entity or details..."
+            placeholder="Search activities, users or modules..."
             value={search}
             onChange={(event) => setSearch(event.target.value)}
           />
@@ -147,47 +610,123 @@ export default function ActivityLog() {
           <option value="Admin">Admin</option>
           <option value="Manager">Manager</option>
         </select>
+
+        {(search || actionFilter !== "All" || roleFilter !== "All") && (
+          <button
+            className="activity-reset"
+            type="button"
+            title="Reset filters"
+            onClick={() => {
+              setSearch("");
+              setActionFilter("All");
+              setRoleFilter("All");
+            }}
+          >
+            <X size={17} />
+          </button>
+        )}
+
       </div>
 
-      <div className="activity-list">
+      {/* ACTIVITY LIST */}
+
+      <div className="activity-section">
+
+        <div className="activity-section-header">
+          <h2>Recent Activities</h2>
+
+          <span className="activity-count">
+            {filteredActivities.length} Records
+          </span>
+        </div>
+
         {filteredActivities.length === 0 ? (
-          <div className="empty-state">
-            <ClipboardList size={42} />
+
+          <div className="activity-empty">
+            <div className="activity-empty-icon">
+              <ClipboardList size={30} />
+            </div>
 
             <h3>No activities found</h3>
 
             <p>
               {activities.length === 0
-                ? "Activities will appear here when users make changes."
-                : "Try changing your search or filters."}
+                ? "Activities will appear here when users perform actions."
+                : "Try changing your search or filter settings."}
             </p>
           </div>
+
         ) : (
-          filteredActivities.map((item) => (
-            <div className="activity-item" key={item.id}>
-              <div className="activity-icon">
-                <Activity size={18} />
-              </div>
 
-              <div className="activity-content">
-                <h3>{item.details || "Activity recorded"}</h3>
+          <div className="activity-timeline">
 
-                <div className="activity-meta">
-                  <span>{item.user || "Unknown user"}</span>
-                  <span>{item.role || "Unknown role"}</span>
-                  <span>{item.entity || "Activity"}</span>
+            {filteredActivities.map((item, index) => (
+
+              <div
+                className="activity-row"
+                key={item.id || `${item.timestamp}-${index}`}
+              >
+
+                <div className="activity-row-icon">
+                  {getActionIcon(item.action)}
                 </div>
 
-                <small>{formatDate(item.timestamp)}</small>
+                <div className="activity-row-main">
+
+                  <h3>
+                    {item.details || "Activity recorded"}
+                  </h3>
+
+                  <div className="activity-row-meta">
+
+                    <span>
+                      <User size={13} />
+                      {item.user || "Unknown user"}
+                    </span>
+
+                    <span>
+                      <Package size={13} />
+                      {item.entity || "General"}
+                    </span>
+
+                    <span>
+                      <ClipboardList size={13} />
+                      {item.role || "Unknown role"}
+                    </span>
+
+                  </div>
+
+                  <small className="activity-date">
+                    <Clock
+                      size={12}
+                      style={{
+                        display: "inline",
+                        marginRight: "5px",
+                      }}
+                    />
+                    {formatDate(item.timestamp)}
+                  </small>
+
+                </div>
+
+                <span
+                  className={`activity-action-badge ${getActionClass(
+                    item.action
+                  )}`}
+                >
+                  {item.action || "Activity"}
+                </span>
+
               </div>
 
-              <span className="activity-action">
-                {item.action || "Activity"}
-              </span>
-            </div>
-          ))
+            ))}
+
+          </div>
+
         )}
+
       </div>
+
     </div>
   );
 }

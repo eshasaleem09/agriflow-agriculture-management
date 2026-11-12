@@ -1,24 +1,29 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
-
+import {
+  UserPlus,
+  Users,
+  ShoppingBag,
+  Search,
+  X,
+  Pencil,
+  Trash2,
+  Upload,
+} from "lucide-react";
 import {
   addBuyer,
   updateBuyer,
   deleteBuyer,
+  setBuyers,
 } from "../features/buyers/buyersSlice.js";
 
 import { updateCrop } from "../features/crops/cropsSlice.js";
-
 import {
-  Users,
-  UserPlus,
-  Search,
-  Trash2,
-  ShoppingBag,
-  Upload,
-  X,
-  Pencil,
-} from "lucide-react";
+  getResources,
+  createResource,
+  updateResource,
+  deleteResource,
+} from "../app/redux/api/resourceHelpers.js";
 
 function getLocalDate() {
   const now = new Date();
@@ -49,8 +54,33 @@ function Buyers() {
   const crops = useSelector((state) => state.crops || []);
 const buyers = useSelector((state) => state.buyers || []);
 const user = useSelector((state) => state.auth?.user);
+const [photoFile, setPhotoFile] = useState(null);
 
-  const isAdmin = user?.role === "Admin";
+useEffect(() => {
+  getResources("buyers")
+    .then((data) => {
+      dispatch(
+        setBuyers(
+          data.map((buyer) => ({
+            ...buyer,
+            cnic: buyer.CNIC,
+            photo: buyer.photoUrl
+              ? `http://localhost:5000${buyer.photoUrl}`
+              : "",
+            cropName:
+              crops.find(
+                (crop) => String(crop.id) === String(buyer.cropId)
+              )?.name || "Unknown Crop",
+          }))
+        )
+      );
+    })
+    .catch((error) => {
+      console.error("Buyers loading failed:", error);
+    });
+}, [dispatch]);
+
+  const isAdmin = String(user?.role || "").toLowerCase() === "admin";
 
   const [search, setSearch] = useState("");
   const [modalOpen, setModalOpen] = useState(false);

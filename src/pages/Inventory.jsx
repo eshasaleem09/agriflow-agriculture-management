@@ -1,32 +1,33 @@
-import {
-  INVENTORY_CATEGORIES,
-  INVENTORY_UNITS,
-  validateInventoryItem,
-  validateInventoryUsage,
-} from "../features/inventory/inventoryUtils.js";
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import {
+  Plus,
+  AlertTriangle,
+  Boxes,
+  Package,
+  CheckCircle2,
+  Search,
+  History,
+  ArrowDownToLine,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
 
 import {
   addInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,
   recordInventoryUsage,
+  setInventoryItems,
 } from "../features/inventory/inventorySlice.js";
 
 import {
-  Package,
-  Plus,
-  Search,
-  AlertTriangle,
-  CheckCircle2,
-  Boxes,
-  Pencil,
-  Trash2,
-  X,
-  History,
-  ArrowDownToLine,
-} from "lucide-react";
+  getResources,
+  createResource,
+  updateResource,
+  deleteResource,
+} from "../app/redux/api/resourceHelpers.js";
 
 const CATEGORIES = [
   "Seeds",
@@ -38,14 +39,71 @@ const CATEGORIES = [
 ];
 
 const UNITS = ["kg", "bags", "litres", "units", "bottles", "packets"];
+function mapInventoryFromApi(item) {
+  return {
+    ...item,
+    id: item.id,
+    name: item.item,
+    category: item.type,
+    quantity: Number(item.qty) || 0,
+    minStock: Number(item.minQty) || 0,
+    unit: item.unit || "units",
+    usageHistory: Array.isArray(item.usageHistory)
+      ? item.usageHistory
+      : [],
+  };
+}
+function validateInventoryItem(form, items = [], editingId = null) {
+  if (!form.name?.trim()) return "Item name is required.";
+  if (!form.category?.trim()) return "Category is required.";
+  if (!form.unit?.trim()) return "Unit is required.";
 
+  const quantity = Number(form.quantity);
+  const minStock = Number(form.minStock);
+
+  if (!Number.isFinite(quantity) || quantity < 0) {
+    return "Enter a valid quantity.";
+  }
+
+  if (!Number.isFinite(minStock) || minStock < 0) {
+    return "Enter a valid minimum stock.";
+  }
+
+  const duplicate = items.some(
+    (item) =>
+      item.name?.trim().toLowerCase() === form.name.trim().toLowerCase() &&
+      String(item.id) !== String(editingId)
+  );
+
+  if (duplicate) return "This inventory item already exists.";
+
+  return "";
+}
+function validateInventoryUsage(amount, availableQuantity) {
+  if (amount === "" || amount === null) {
+    return "Please enter the usage quantity.";
+  }
+
+  const quantity = Number(amount);
+
+  if (!Number.isFinite(quantity) || quantity <= 0) {
+    return "Usage quantity must be greater than zero.";
+  }
+
+  if (quantity > Number(availableQuantity)) {
+    return "Usage quantity cannot exceed available stock.";
+  }
+
+  return "";
+}
 function Inventory() {
   const dispatch = useDispatch();
 
   const inventory = useSelector((state) => state.inventory || []);
 const user = useSelector((state) => state.auth?.user);
 
-  const isAdmin = user?.role === "Admin";
+  const isAdmin =
+  String(user?.role || "").toLowerCase() === "admin";
 
   const [search, setSearch] = useState("");
   const [categoryFilter, setCategoryFilter] = useState("All");
@@ -58,6 +116,36 @@ const user = useSelector((state) => state.auth?.user);
   const [selectedItemId, setSelectedItemId] = useState(null);
 
   const [error, setError] = useState("");
+  useEffect(() => {
+  let isMounted = true;
+
+  async function loadInventory() {
+    try {
+      const records = await getResources("inventory");
+
+      if (isMounted) {
+        dispatch(
+          setInventoryItems(records.map(mapInventoryFromApi))
+        );
+      }
+    } catch (error) {
+      console.error("Inventory loading failed:", error);
+
+      if (isMounted) {
+        setError(
+          error.response?.data?.message ||
+          "Unable to load inventory from server."
+        );
+      }
+    }
+  }
+
+  loadInventory();
+
+  return () => {
+    isMounted = false;
+  };
+}, [dispatch]);
 
   const emptyForm = {
     name: "",
@@ -119,9 +207,8 @@ const matchesSearch =
   }
 
   function openEditForm(item) {
-    if (!isAdmin) return;
-
-    setEditingId(item.id);
+  
+setEditingId(item.id);
 
     setForm({
       name: item.name,
@@ -134,88 +221,127 @@ const matchesSearch =
     setError("");
     setFormOpen(true);
   }
+async function handleSaveItem(event) {
+  event.preventDefault();
 
-  function handleSaveItem(event) {
-    event.preventDefault();
 
-    if (editingId !== null && !isAdmin) {
-      setError("Only an Admin can edit inventory records.");
-      return;
-    }
 
-    const validationErrors = validateInventoryItem(
-  form,
-  inventory,
-  editingId
-);
+  const validationErrors = validateInventoryItem(
+    form,
+    inventory,
+    editingId
+  );
 
-const name = form.name.trim();
+  const name = form.name.trim();
 
-if (Object.keys(validationErrors).length > 0) {
-  setError(Object.values(validationErrors)[0]);
-  return;
-}
-    const quantity = Number(form.quantity);
-    const minStock = Number(form.minStock);
+  if (Object.keys(validationErrors).length > 0) {
+    setError(Object.values(validationErrors)[0]);
+    return;
+  }
 
-    if (!name || form.quantity === "" || form.minStock === "") {
-      setError("Please complete all required fields.");
-      return;
-    }
+  const quantity = Number(form.quantity);
+  const minStock = Number(form.minStock);
 
-    if (
-      !Number.isFinite(quantity) ||
-      quantity < 0 ||
-      !Number.isFinite(minStock) ||
-      minStock < 0
-    ) {
-      setError("Stock quantities cannot be negative.");
-      return;
-    }
+  if (!name || form.quantity === "" || form.minStock === "") {
+    setError("Please complete all required fields.");
+    return;
+  }
 
-    const duplicate = inventory.some(
-      (item) =>
-        item.name.toLowerCase() === name.toLowerCase() &&
-        item.id !== editingId
-    );
+  if (
+    !Number.isFinite(quantity) ||
+    quantity < 0 ||
+    !Number.isFinite(minStock) ||
+    minStock < 0
+  ) {
+    setError("Stock quantities cannot be negative.");
+    return;
+  }
 
-    if (duplicate) {
-      setError("An inventory item with this name already exists.");
-      return;
-    }
+  const duplicate = inventory.some(
+    (item) =>
+      item.name.toLowerCase() === name.toLowerCase() &&
+      String(item.id) !== String(editingId)
+  );
 
-    const existingItem = inventory.find(
-      (item) => item.id === editingId
-    );
+  if (duplicate) {
+    setError("An inventory item with this name already exists.");
+    return;
+  }
 
-    const itemData = {
-      id: editingId ?? Date.now(),
-      name,
-      category: form.category,
-      quantity,
-      unit: form.unit,
-      minStock,
-      usageHistory: existingItem?.usageHistory ?? [],
-    };
+  const existingItem = inventory.find(
+    (item) => String(item.id) === String(editingId)
+  );
 
+  const payload = {
+    item: name,
+    type: form.category,
+    qty: quantity,
+    minQty: minStock,
+    unit: form.unit,
+    usageHistory: existingItem?.usageHistory ?? [],
+  };
+
+  try {
     if (editingId !== null) {
-      dispatch(updateInventoryItem(itemData));
+      const savedItem = await updateResource(
+        "inventory",
+        editingId,
+        payload
+      );
+
+      dispatch(
+        updateInventoryItem(mapInventoryFromApi(savedItem))
+      );
     } else {
-      dispatch(addInventoryItem(itemData));
+      const savedItem = await createResource(
+        "inventory",
+        payload
+      );
+
+      dispatch(
+        addInventoryItem(mapInventoryFromApi(savedItem))
+      );
     }
 
     setFormOpen(false);
     setForm(emptyForm);
+    setEditingId(null);
     setError("");
+  } catch (error) {
+    console.error("Inventory save failed:", error);
+
+    setError(
+      error.response?.data?.message ||
+      "Unable to save inventory item."
+    );
+  }
+}
+
+async function handleDeleteItem(item) {
+  if (!isAdmin) {
+    setError("Only Admin can delete inventory items.");
+    return;
   }
 
-  function handleDeleteItem(item) {
-    if (!isAdmin) return;
-
-    if (window.confirm(`Delete ${item.name} from inventory?`)) {
-      dispatch(deleteInventoryItem(item.id));
-    }
+  if (!window.confirm(`Delete ${item.name} from inventory?`)) {
+    return;
   }
+
+  try {
+    await deleteResource("inventory", item.id);
+
+    dispatch(deleteInventoryItem(item.id));
+    setError("");
+  } catch (error) {
+    console.error("Inventory deletion failed:", error);
+
+    setError(
+      error.response?.data?.message ||
+      "Unable to delete inventory item."
+    );
+  }
+}
+
 
   function openUsageForm(item) {
     setSelectedItemId(item.id);
@@ -224,43 +350,75 @@ if (Object.keys(validationErrors).length > 0) {
     setUsageOpen(true);
   }
 
-  function handleRecordUsage(event) {
-    event.preventDefault();
+ async function handleRecordUsage(event) {
+  event.preventDefault();
 
-    const item = inventory.find(
-      (entry) => entry.id === selectedItemId
+  const item = inventory.find(
+    (entry) => String(entry.id) === String(selectedItemId)
+  );
+
+  if (!item) {
+    setError("Inventory item not found.");
+    return;
+  }
+
+  const amount = Number(usageForm.amount);
+
+  const usageError = validateInventoryUsage(
+    usageForm.amount,
+    item.quantity
+  );
+
+  if (usageError) {
+    setError(usageError);
+    return;
+  }
+
+  const usageRecord = {
+    id: Date.now(),
+    amount,
+    note: usageForm.note.trim(),
+    usedBy: user?.name || user?.username || "Farm user",
+    usedAt: new Date().toISOString(),
+  };
+
+  const payload = {
+    item: item.name,
+    type: item.category,
+    qty: item.quantity - amount,
+    minQty: item.minStock,
+    unit: item.unit,
+    usageHistory: [
+      usageRecord,
+      ...(item.usageHistory || []),
+    ],
+  };
+
+  try {
+    const savedItem = await updateResource(
+      "inventory",
+      item.id,
+      payload
     );
 
-    if (!item) {
-      setError("Inventory item not found.");
-      return;
-    }
-
-    const amount = Number(usageForm.amount);
-
-const usageError = validateInventoryUsage(
-  usageForm.amount,
-  item.quantity
-);
-
-if (usageError) {
-  setError(usageError);
-  return;
-}
-
     dispatch(
-      recordInventoryUsage({
-        id: item.id,
-        amount,
-        note: usageForm.note.trim(),
-        usedBy: user?.name || user?.username || "Farm user",
-        usedAt: new Date().toISOString(),
-      })
+      updateInventoryItem(mapInventoryFromApi(savedItem))
     );
 
     setUsageOpen(false);
+    setUsageForm({ amount: "", note: "" });
     setError("");
+  } catch (error) {
+    console.error("Inventory usage update failed:", error);
+    console.error("Usage API response:", error.response?.data);
+console.error("Usage status:", error.response?.status);
+
+    setError(
+      error.response?.data?.message ||
+      "Unable to record inventory usage."
+    );
   }
+}
 
   return (
     <section className="inventory-page">
@@ -441,27 +599,27 @@ if (usageError) {
                     Record Usage
                   </button>
 
-                  {isAdmin && (
-                    <>
-                      <button
-                        type="button"
-                        className="inventory-edit-button"
-                        onClick={() => openEditForm(item)}
-                        aria-label={`Edit ${item.name}`}
-                      >
-                        <Pencil size={16} />
-                      </button>
+                  {/* Edit button: Admin and Manager */}
+<button
+  type="button"
+  className="inventory-edit-button"
+  onClick={() => openEditForm(item)}
+  aria-label={`Edit ${item.name}`}
+>
+  <Pencil size={16} />
+</button>
 
-                      <button
-                        type="button"
-                        className="inventory-delete-button"
-                        onClick={() => handleDeleteItem(item)}
-                        aria-label={`Delete ${item.name}`}
-                      >
-                        <Trash2 size={16} />
-                      </button>
-                    </>
-                  )}
+{/* Delete button: Admin only */}
+{isAdmin && (
+  <button
+    type="button"
+    className="inventory-delete-button"
+    onClick={() => handleDeleteItem(item)}
+    aria-label={`Delete ${item.name}`}
+  >
+    <Trash2 size={16} />
+  </button>
+)}
                 </div>
               </article>
             );

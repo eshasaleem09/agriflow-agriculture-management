@@ -1,15 +1,19 @@
-import { useMemo, useState } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useDispatch, useSelector } from "react-redux";
+
 import {
   addCrop,
   updateCrop,
   deleteCrop,
 } from "../features/crops/cropsSlice.js";
+
 import {
   getHealthStatus,
   getHealthClass,
   validateCrop,
 } from "../features/crops/cropsUtils.js";
+
+import { apiClient } from "../app/redux/api/index.js";
 
 import {
   Sprout,
@@ -24,17 +28,29 @@ import {
   CheckCircle2,
 } from "lucide-react";
 
+// Convert backend crop fields into the existing frontend structure.
+const mapBackendCrop = (crop) => ({
+  id: crop.id,
+  name: crop.name || "",
+  field: crop.field || "",
+  quantity: Number(crop.expectedQty ?? 0),
+  health: Number(crop.healthScore ?? 0),
+});
 
+const getCropStatus = (health) => {
+  if (health >= 70) return "Healthy";
+  if (health >= 40) return "Needs Attention";
+  return "Critical";
+};
 
 function Crops() {
   const dispatch = useDispatch();
 
-  // Read data from Redux
- const crops = useSelector((state) => state.crops || []);
-const user = useSelector((state) => state.auth?.user);
+  const crops = useSelector((state) => state.crops || []);
+  const user = useSelector((state) => state.auth?.user);
 
-  // Only Admin can edit and delete crops
-  const isAdmin = user?.role === "Admin";
+  const isAdmin =
+    user?.role?.toLowerCase() === "admin";
 
   const [search, setSearch] = useState("");
   const [healthFilter, setHealthFilter] = useState("All");
@@ -44,6 +60,9 @@ const user = useSelector((state) => state.auth?.user);
   const [editingId, setEditingId] = useState(null);
   const [formError, setFormError] = useState("");
 
+  const [loading, setLoading] = useState(true);
+  const [saving, setSaving] = useState(false);
+
   const [form, setForm] = useState({
     name: "",
     quantity: "",
@@ -51,14 +70,64 @@ const user = useSelector((state) => state.auth?.user);
     field: "",
   });
 
-  // Search, filter and sort crops
+  // Fetch crops from PostgreSQL through the backend.
+  useEffect(() => {
+    let mounted = true;
+
+    const fetchCrops = async () => {
+      try {
+        setLoading(true);
+
+        const response = await apiClient.get("/crops");
+
+        const backendData = response.data?.data;
+
+        const backendCrops = Array.isArray(backendData)
+          ? backendData.map(mapBackendCrop)
+          : [];
+
+        if (mounted) {
+          dispatch({
+            type: "app/HYDRATE_STATE",
+            payload: {
+              crops: backendCrops,
+            },
+          });
+        }
+      } catch (error) {
+        console.error(
+          "Failed to fetch crops:",
+          error.response?.data || error.message
+        );
+
+        if (mounted) {
+          setFormError(
+            error.response?.data?.message ||
+              "Unable to load crops from the server."
+          );
+        }
+      } finally {
+        if (mounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    fetchCrops();
+
+    return () => {
+      mounted = false;
+    };
+  }, [dispatch]);
+
+  // Search, filter and sort crops.
   const filteredCrops = useMemo(() => {
     const result = crops.filter((crop) => {
       const searchTerm = search.toLowerCase();
 
-     const matchesSearch =
-  (crop.name || "").toLowerCase().includes(searchTerm) ||
-  (crop.field || "").toLowerCase().includes(searchTerm);
+      const matchesSearch =
+        (crop.name || "").toLowerCase().includes(searchTerm) ||
+        (crop.field || "").toLowerCase().includes(searchTerm);
 
       const matchesHealth =
         healthFilter === "All" ||
@@ -80,7 +149,7 @@ const user = useSelector((state) => state.auth?.user);
     });
   }, [crops, search, healthFilter, sortBy]);
 
-  // Crop health summaries
+  // Crop health summaries.
   const healthyCount = crops.filter(
     (crop) => crop.health >= 70
   ).length;
@@ -93,7 +162,7 @@ const user = useSelector((state) => state.auth?.user);
     (crop) => crop.health < 40
   ).length;
 
-  // Open the form to add a crop
+  // Open add crop modal.
   function openAddModal() {
     setEditingId(null);
 
@@ -108,7 +177,7 @@ const user = useSelector((state) => state.auth?.user);
     setModalOpen(true);
   }
 
-  // Open the form to edit a crop
+  // Open edit crop modal.
   function openEditModal(crop) {
     if (!isAdmin) return;
 
@@ -125,26 +194,32 @@ const user = useSelector((state) => state.auth?.user);
     setModalOpen(true);
   }
 
-  // Validate and save crop data
-  function handleSubmit(event) {
+  // Validate and save crop through backend.
+  async function handleSubmit(event) {
     event.preventDefault();
 
-    // Managers cannot edit existing crops
+    if (saving) return;
+
     if (editingId !== null && !isAdmin) {
       setFormError("You do not have permission to edit crops.");
       return;
     }
-    const validationErrors = validateCrop(form, crops, editingId);
 
-if (Object.keys(validationErrors).length > 0) {
-  setFormError(Object.values(validationErrors)[0]);
-  return;
-}
+    const validationErrors = validateCrop(
+      form,
+      crops,
+      editingId
+    );
 
-const name = form.name.trim();
-const field = form.field.trim();
-const quantity = Number(form.quantity);
-const health = Number(form.health);
+    if (Object.keys(validationErrors).length > 0) {
+      setFormError(Object.values(validationErrors)[0]);
+      return;
+    }
+
+    const name = form.name.trim();
+    const field = form.field.trim();
+    const quantity = Number(form.quantity);
+    const health = Number(form.health);
 
     if (!name || !field || form.quantity === "") {
       setFormError("Please fill in all fields.");
@@ -165,7 +240,6 @@ const health = Number(form.health);
       return;
     }
 
-    // Prevent duplicate crop names
     const duplicate = crops.some(
       (crop) =>
         crop.name.toLowerCase() === name.toLowerCase() &&
@@ -177,35 +251,68 @@ const health = Number(form.health);
       return;
     }
 
-    const cropData = {
+    const backendCrop = {
       name,
-      quantity,
-      health,
       field,
+      expectedQty: quantity,
+      healthScore: health,
+      status: getCropStatus(health),
     };
 
-    if (editingId !== null) {
-      dispatch(
-        updateCrop({
-          id: editingId,
-          ...cropData,
-        })
-      );
-    } else {
-      dispatch(
-        addCrop({
-          id: Date.now(),
-          ...cropData,
-        })
-      );
-    }
+    try {
+      setSaving(true);
+      setFormError("");
 
-    setModalOpen(false);
-    setFormError("");
+      if (editingId !== null) {
+        const response = await apiClient.put(
+          `/crops/${editingId}`,
+          backendCrop
+        );
+
+        const savedCrop = mapBackendCrop(
+          response.data?.data
+        );
+
+        dispatch(updateCrop(savedCrop));
+      } else {
+        const response = await apiClient.post(
+          "/crops",
+          backendCrop
+        );
+
+        const savedCrop = mapBackendCrop(
+          response.data?.data
+        );
+
+        dispatch(addCrop(savedCrop));
+      }
+
+      setModalOpen(false);
+      setEditingId(null);
+
+      setForm({
+        name: "",
+        quantity: "",
+        health: "80",
+        field: "",
+      });
+    } catch (error) {
+      console.error(
+        "Crop save failed:",
+        error.response?.data || error.message
+      );
+
+      setFormError(
+        error.response?.data?.message ||
+          "Unable to save crop. Please try again."
+      );
+    } finally {
+      setSaving(false);
+    }
   }
 
-  // Delete a crop (Admin only)
-  function handleDeleteCrop(id) {
+  // Delete crop from backend.
+  async function handleDeleteCrop(id) {
     if (!isAdmin) return;
 
     const crop = crops.find((item) => item.id === id);
@@ -216,17 +323,34 @@ const health = Number(form.health);
       `Delete ${crop.name} from crop records?`
     );
 
-    if (confirmed) {
+    if (!confirmed) return;
+
+    try {
+      await apiClient.delete(`/crops/${id}`);
+
       dispatch(deleteCrop(id));
+    } catch (error) {
+      console.error(
+        "Crop deletion failed:",
+        error.response?.data || error.message
+      );
+
+      window.alert(
+        error.response?.data?.message ||
+          "Unable to delete crop."
+      );
     }
   }
 
   return (
     <section className="crops-page">
+
       {/* Page heading */}
       <div className="crops-heading">
         <div>
-          <span className="crops-eyebrow">FARM OPERATIONS</span>
+          <span className="crops-eyebrow">
+            FARM OPERATIONS
+          </span>
 
           <h2>Crop Management</h2>
 
@@ -248,6 +372,7 @@ const health = Number(form.health);
 
       {/* Crop summaries */}
       <div className="crops-summary-grid">
+
         <article className="panel crops-summary-card">
           <span className="crops-summary-icon">
             <Sprout size={22} />
@@ -291,10 +416,12 @@ const health = Number(form.health);
             <h3>{criticalCount}</h3>
           </div>
         </article>
+
       </div>
 
       {/* Search, filter and sort */}
       <div className="panel crops-toolbar">
+
         <label className="crops-search">
           <Search size={19} />
 
@@ -318,7 +445,9 @@ const health = Number(form.health);
           >
             <option value="All">All</option>
             <option value="Healthy">Healthy</option>
-            <option value="Needs Attention">Needs Attention</option>
+            <option value="Needs Attention">
+              Needs Attention
+            </option>
             <option value="Critical">Critical</option>
           </select>
         </label>
@@ -339,9 +468,10 @@ const health = Number(form.health);
             </option>
           </select>
         </label>
+
       </div>
 
-      {/* Crop list heading */}
+      {/* Results heading */}
       <div className="crops-results-heading">
         <div>
           <h3>Your Crops</h3>
@@ -353,9 +483,17 @@ const health = Number(form.health);
         </div>
       </div>
 
+      {/* Loading */}
+      {loading && (
+        <div className="panel crops-empty-state">
+          <p>Loading crops from database...</p>
+        </div>
+      )}
+
       {/* Crop cards */}
-      {filteredCrops.length > 0 ? (
+      {!loading && filteredCrops.length > 0 && (
         <div className="crops-list-grid">
+
           {filteredCrops.map((crop) => {
             const status = getHealthStatus(crop.health);
             const healthClass = getHealthClass(crop.health);
@@ -365,6 +503,7 @@ const health = Number(form.health);
                 className="panel crop-management-card"
                 key={crop.id}
               >
+
                 <div className="crop-management-top">
                   <span className={`crop-icon-box ${healthClass}`}>
                     <Leaf size={25} />
@@ -386,11 +525,12 @@ const health = Number(form.health);
                   <span>Available quantity</span>
 
                   <strong>
-                    {crop.quantity.toLocaleString()} kg
+                    {Number(crop.quantity).toLocaleString()} kg
                   </strong>
                 </div>
 
                 <div className="crop-health-details">
+
                   <div className="crop-health-label-row">
                     <span>Health score</span>
                     <strong>{crop.health}%</strong>
@@ -409,11 +549,13 @@ const health = Number(form.health);
                       style={{ width: `${crop.health}%` }}
                     />
                   </div>
+
                 </div>
 
-                {/* Admin-only edit and delete buttons */}
+                {/* Admin actions */}
                 {isAdmin && (
                   <div className="crop-card-actions">
+
                     <button
                       type="button"
                       className="crop-edit-button"
@@ -433,15 +575,22 @@ const health = Number(form.health);
                       <Trash2 size={16} />
                       Delete
                     </button>
+
                   </div>
                 )}
+
               </article>
             );
           })}
+
         </div>
-      ) : (
+      )}
+
+      {/* Empty state */}
+      {!loading && filteredCrops.length === 0 && (
         <div className="panel crops-empty-state">
           <Sprout size={36} />
+
           <h3>No crops found</h3>
 
           <p>
@@ -450,23 +599,26 @@ const health = Number(form.health);
         </div>
       )}
 
-      {/* Add/Edit crop modal */}
+      {/* Add/Edit modal */}
       {modalOpen && (
         <div
           className="crops-modal-backdrop"
           onMouseDown={(event) => {
-            if (event.target === event.currentTarget) {
+            if (event.target === event.currentTarget && !saving) {
               setModalOpen(false);
             }
           }}
         >
+
           <section
             className="crops-modal"
             role="dialog"
             aria-modal="true"
             aria-labelledby="crop-modal-title"
           >
+
             <div className="crops-modal-heading">
+
               <div>
                 <span className="crops-eyebrow">
                   CROP RECORDS
@@ -484,12 +636,15 @@ const health = Number(form.health);
                 className="crops-modal-close"
                 onClick={() => setModalOpen(false)}
                 aria-label="Close form"
+                disabled={saving}
               >
                 <X size={21} />
               </button>
+
             </div>
 
             <form onSubmit={handleSubmit}>
+
               <label>
                 Crop name
 
@@ -569,10 +724,12 @@ const health = Number(form.health);
               )}
 
               <div className="crops-modal-actions">
+
                 <button
                   type="button"
                   className="crop-cancel-button"
                   onClick={() => setModalOpen(false)}
+                  disabled={saving}
                 >
                   Cancel
                 </button>
@@ -580,16 +737,23 @@ const health = Number(form.health);
                 <button
                   type="submit"
                   className="crops-primary-button"
+                  disabled={saving}
                 >
-                  {editingId !== null
-                    ? "Save Changes"
-                    : "Add Crop"}
+                  {saving
+                    ? "Saving..."
+                    : editingId !== null
+                      ? "Save Changes"
+                      : "Add Crop"}
                 </button>
+
               </div>
+
             </form>
+
           </section>
         </div>
       )}
+
     </section>
   );
 }

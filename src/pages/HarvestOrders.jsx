@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   CheckCircle2,
@@ -15,13 +15,14 @@ import {
   addHarvest,
   deleteHarvest,
   completeHarvest,
-  updateOrder,
   selectHarvestSchedule,
   selectOrders,
 } from "../features/harvest/harvestSlice.js";
 
 import {
+  fetchOrders,
   createOrderWithStock,
+  updateOrderOnServer,
   deleteOrderWithStock,
 } from "../features/harvest/harvestThunks.js";
 
@@ -35,6 +36,9 @@ function HarvestOrders() {
   const buyers = useSelector((state) => state.buyers || []);
   const schedule = useSelector(selectHarvestSchedule);
   const orders = useSelector(selectOrders);
+useEffect(() => {
+  dispatch(fetchOrders());
+}, [dispatch]);
 
   // Form visibility
   const [showHarvestForm, setShowHarvestForm] = useState(false);
@@ -239,100 +243,82 @@ function HarvestOrders() {
     );
   }
 
-  // Create customer order
-  function handleOrderSubmit(event) {
-    event.preventDefault();
+  async function handleOrderSubmit(event) {
+  event.preventDefault();
 
-    setMessage("");
-    setError("");
+  setMessage("");
+  setError("");
 
-    const quantity = Number(orderForm.quantity);
+  const quantity = Number(orderForm.quantity);
 
-    if (
-      !orderForm.customer.trim() ||
-      !orderForm.crop ||
-      !Number.isFinite(quantity) ||
-      quantity <= 0
-    ) {
-      setError(
-        "Enter a customer, crop, and valid quantity."
-      );
-      return;
-    }
-
-    const selectedCrop = crops.find(
-      (crop) => crop.name === orderForm.crop
-    );
-
-    if (!selectedCrop) {
-      setError("The selected crop could not be found.");
-      return;
-    }
-
-    if (quantity > Number(selectedCrop.quantity || 0)) {
-      setError(
-        `Insufficient ${selectedCrop.name} stock. Available: ${selectedCrop.quantity}.`
-      );
-      return;
-    }
-
-    const order = {
-      id: `ORD-${Date.now()}`,
-      customer: orderForm.customer.trim(),
-      crop: orderForm.crop,
-      quantity,
-      status: "Pending",
-      createdAt: new Date().toISOString(),
-    };
-
-    const result = dispatch(createOrderWithStock(order));
-
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-
-    setOrderForm({
-      customer: "",
-      crop: "",
-      quantity: "",
-    });
-
-    setShowOrderForm(false);
-    setMessage(result.message);
+  if (
+    !orderForm.customer.trim() ||
+    !orderForm.crop ||
+    !Number.isFinite(quantity) ||
+    quantity <= 0
+  ) {
+    setError("Enter a customer, crop, and valid quantity.");
+    return;
   }
 
-  // Update order status
-  function handleOrderStatusChange(order, status) {
-    dispatch(updateOrder({ ...order, status }));
+  const order = {
+    customer: orderForm.customer.trim(),
+    crop: orderForm.crop,
+    quantity,
+    status: "Pending",
+  };
 
-    setMessage(
-      `${order.id} status updated to ${status}.`
-    );
+  const result = await dispatch(createOrderWithStock(order));
 
-    setError("");
+  if (!result.ok) {
+    setError(result.message);
+    return;
   }
+
+  setOrderForm({
+    customer: "",
+    crop: "",
+    quantity: "",
+  });
+
+  setShowOrderForm(false);
+  setMessage(result.message);
+}
+
+  async function handleOrderStatusChange(order, status) {
+  const result = await dispatch(
+    updateOrderOnServer(order.id, status)
+  );
+
+  if (!result.ok) {
+    setError(result.message);
+    return;
+  }
+
+  setMessage(result.message);
+  setError("");
+}
 
   // Delete customer order
-  function handleDeleteOrder(order) {
-    const confirmed = window.confirm(
-      `Delete ${order.id}? Stock will only be restored if the order has not been delivered.`
-    );
+  async function handleDeleteOrder(order) {
+  const confirmed = window.confirm(
+    `Delete ${order.id}? Stock will only be restored if the order has not been delivered.`
+  );
 
-    if (!confirmed) return;
+  if (!confirmed) return;
 
-    const result = dispatch(
-      deleteOrderWithStock(order.id)
-    );
+  const result = await dispatch(
+    deleteOrderWithStock(order.id)
+  );
 
-    if (!result.ok) {
-      setError(result.message);
-      return;
-    }
-
-    setMessage(result.message);
-    setError("");
+  if (!result.ok) {
+    setError(result.message);
+    return;
   }
+
+  setMessage(result.message);
+  setError("");
+}
 
   // Delete harvest schedule
   function handleDeleteHarvest(item) {

@@ -3,15 +3,16 @@ import { createSlice } from "@reduxjs/toolkit";
 const expensesSlice = createSlice({
   name: "expenses",
   initialState: [],
-
   reducers: {
+    setExpenses: (state, action) => action.payload,
+
     addExpense: (state, action) => {
       state.push(action.payload);
     },
 
     updateExpense: (state, action) => {
       const index = state.findIndex(
-        (item) => item.id === action.payload.id
+        (expense) => expense.id === action.payload.id
       );
 
       if (index !== -1) {
@@ -20,12 +21,15 @@ const expensesSlice = createSlice({
     },
 
     deleteExpense: (state, action) => {
-      return state.filter((item) => item.id !== action.payload);
+      return state.filter(
+        (expense) => expense.id !== action.payload
+      );
     },
   },
 });
 
 export const {
+  setExpenses,
   addExpense,
   updateExpense,
   deleteExpense,

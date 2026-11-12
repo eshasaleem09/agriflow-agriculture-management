@@ -3,8 +3,9 @@ import { createSlice } from "@reduxjs/toolkit";
 const buyersSlice = createSlice({
   name: "buyers",
   initialState: [],
-
   reducers: {
+    setBuyers: (state, action) => action.payload,
+
     addBuyer: (state, action) => {
       state.push(action.payload);
     },
@@ -28,6 +29,7 @@ const buyersSlice = createSlice({
 });
 
 export const {
+  setBuyers,
   addBuyer,
   updateBuyer,
   deleteBuyer,

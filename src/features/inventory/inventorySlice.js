@@ -42,8 +42,9 @@ const initialState = [
 const inventorySlice = createSlice({
   name: "inventory",
   initialState,
-
   reducers: {
+    setInventoryItems: (state, action) => action.payload,
+
     addInventoryItem: (state, action) => {
       state.push(action.payload);
     },
@@ -59,32 +60,41 @@ const inventorySlice = createSlice({
     },
 
     deleteInventoryItem: (state, action) => {
-      return state.filter((item) => item.id !== action.payload);
+      return state.filter(
+        (item) => item.id !== action.payload
+      );
     },
 
     recordInventoryUsage: (state, action) => {
-      const { id, amount, note, usedBy, usedAt } = action.payload;
+      const { id, amount, note, usedBy } = action.payload;
 
       const item = state.find(
-        (entry) => entry.id === id
+        (item) => item.id === id
       );
 
-      if (item && amount > 0 && amount <= item.quantity) {
-        item.quantity -= amount;
+      if (item) {
+        item.quantity = Math.max(
+          0,
+          item.quantity - amount
+        );
 
-        item.usageHistory.unshift({
-          id: Date.now(),
-          amount,
-          note,
-          usedBy,
-          usedAt,
-        });
+        item.usageHistory = [
+          {
+            id: Date.now(),
+            amount,
+            note,
+            usedBy,
+            usedAt: new Date().toISOString(),
+          },
+          ...(item.usageHistory || []),
+        ];
       }
     },
   },
 });
 
 export const {
+  setInventoryItems,
   addInventoryItem,
   updateInventoryItem,
   deleteInventoryItem,

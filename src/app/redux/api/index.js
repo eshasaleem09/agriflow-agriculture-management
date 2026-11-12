@@ -1,3 +1,61 @@
+import axios from "axios";
+
+const API_URL =
+  import.meta.env.VITE_API_URL || "http://localhost:5000/api";
+
+// Axios instance for backend communication
+export const apiClient = axios.create({
+  baseURL: API_URL,
+  headers: {
+    "Content-Type": "application/json",
+  },
+});
+
+// Automatically attach JWT token to requests
+apiClient.interceptors.request.use(
+  (config) => {
+    const token = localStorage.getItem("agriflow_token");
+
+    if (token) {
+      config.headers.Authorization = `Bearer ${token}`;
+    }
+
+    return config;
+  },
+  (error) => Promise.reject(error)
+);
+
+// Authentication API
+export const authApi = {
+  login: (credentials) =>
+    apiClient.post("/auth/login", credentials),
+
+  register: (userData) =>
+    apiClient.post("/auth/register", userData),
+
+  profile: () =>
+    apiClient.get("/auth/profile"),
+};
+
+// CRUD API
+export const resourceApi = {
+  getAll: (resource) =>
+    apiClient.get(`/${resource}`),
+
+  getOne: (resource, id) =>
+    apiClient.get(`/${resource}/${id}`),
+
+  create: (resource, data) =>
+    apiClient.post(`/${resource}`, data),
+
+  update: (resource, id, data) =>
+    apiClient.put(`/${resource}/${id}`, data),
+
+  remove: (resource, id) =>
+    apiClient.delete(`/${resource}/${id}`),
+};
+
+// Preserve existing localStorage functionality
 const createResponse = (succeeded, message, data = null) => ({
   data: {
     succeeded,
@@ -8,7 +66,10 @@ const createResponse = (succeeded, message, data = null) => ({
 
 const isStorageAvailable = () => {
   try {
-    return typeof window !== "undefined" && !!window.localStorage;
+    return (
+      typeof window !== "undefined" &&
+      !!window.localStorage
+    );
   } catch {
     return false;
   }
@@ -24,15 +85,17 @@ export const storageApi = {
       const savedData = localStorage.getItem(key);
 
       if (savedData === null) {
-        return createResponse(true, "No saved data found.", fallback);
+        return createResponse(
+          true,
+          "No saved data found.",
+          fallback
+        );
       }
-
-      const parsedData = JSON.parse(savedData);
 
       return createResponse(
         true,
         "Data retrieved successfully.",
-        parsedData
+        JSON.parse(savedData)
       );
     } catch (error) {
       return createResponse(

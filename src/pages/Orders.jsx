@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
 ShoppingCart,
@@ -21,12 +21,16 @@ import {
 } from "../features/harvest/harvestSlice.js";
 
 import {
+  fetchOrders,
+  updateOrderOnServer,
   deleteOrderWithStock,
 } from "../features/harvest/harvestThunks.js";
-
 function Orders() {
 const dispatch = useDispatch();
 const orders = useSelector(selectOrders);
+useEffect(() => {
+  dispatch(fetchOrders());
+}, [dispatch]);
 
 const [search, setSearch] = useState("");
 const [statusFilter, setStatusFilter] = useState("All");
@@ -73,20 +77,31 @@ const completedPercentage = orders.length
 ? Math.round((deliveredCount / orders.length) * 100)
 : 0;
 
-function handleStatusChange(order, status) {
-dispatch(updateOrder({ ...order, status }));
+async function handleStatusChange(order, status) {
+  const result = await dispatch(
+    updateOrderOnServer(order.id, status)
+  );
+
+  if (!result.ok) {
+    window.alert(result.message);
+    return;
+  }
 }
 
-function handleDelete(order) {
+async function handleDelete(order) {
   const confirmed = window.confirm(
     `Are you sure you want to delete order ${order.id}?`
   );
 
   if (!confirmed) return;
 
-  const result = dispatch(deleteOrderWithStock(order.id));
+  const result = await dispatch(
+    deleteOrderWithStock(order.id)
+  );
 
   if (!result.ok) {
+    window.alert(result.message);
+  } else {
     window.alert(result.message);
   }
 }

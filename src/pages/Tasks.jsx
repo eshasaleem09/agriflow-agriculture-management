@@ -1,33 +1,42 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import {
+  Plus,
+  ClipboardList,
+  AlertTriangle,
+  Clock3,
+  CheckCircle2,
+  Sprout,
+  CalendarDays,
+  Pencil,
+  Trash2,
+  X,
+} from "lucide-react";
+
 import {
   addTask,
   updateTask,
   deleteTask,
-  markTaskDone,
+  setTasks,
 } from "../features/tasks/tasksSlice.js";
 
 import {
-  Plus,
-  CalendarDays,
-  CheckCircle2,
-  Clock3,
-  Pencil,
-  Trash2,
-  Sprout,
-  AlertTriangle,
-  X,
-  ClipboardList,
-} from "lucide-react";
+  getResources,
+  createResource,
+  updateResource,
+  deleteResource,
+} from "../app/redux/api/resourceHelpers.js";
 
 function getLocalDate() {
   const date = new Date();
+
   const year = date.getFullYear();
   const month = String(date.getMonth() + 1).padStart(2, "0");
   const day = String(date.getDate()).padStart(2, "0");
 
   return `${year}-${month}-${day}`;
 }
+
 function isValidDate(value) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(value || "")) {
     return false;
@@ -45,9 +54,7 @@ function isValidDate(value) {
 }
 
 function getTaskStatus(task, today) {
-  if (task.status === "Done") {
-    return "Done";
-  }
+  if (task.status === "Done") return "Done";
 
   if (task.dueDate && task.dueDate < today) {
     return "Overdue";
@@ -56,14 +63,25 @@ function getTaskStatus(task, today) {
   return "Pending";
 }
 
+function mapTaskFromApi(task) {
+  return {
+    ...task,
+    id: task.id,
+    cropId: task.cropId || "",
+    notes: task.notes || "",
+  };
+}
+
 function Tasks() {
   const dispatch = useDispatch();
 
   const tasks = useSelector((state) => state.tasks || []);
-const crops = useSelector((state) => state.crops || []);
-const user = useSelector((state) => state.auth?.user);
+  const crops = useSelector((state) => state.crops || []);
+  const user = useSelector((state) => state.auth?.user);
 
-  const isAdmin = user?.role === "Admin";
+  const isAdmin =
+    String(user?.role || "").toLowerCase() === "admin";
+
   const today = getLocalDate();
 
   const [search, setSearch] = useState("");
@@ -81,47 +99,68 @@ const user = useSelector((state) => state.auth?.user);
 
   const [form, setForm] = useState(emptyForm);
 
-  const taskCounts = useMemo(() => {
-    return {
-      total: tasks.length,
+  // Load tasks from backend
+  useEffect(() => {
+    let mounted = true;
 
-      pending: tasks.filter(
-        (task) => getTaskStatus(task, today) === "Pending"
-      ).length,
+    async function loadTasks() {
+      try {
+        const records = await getResources("tasks");
 
-      overdue: tasks.filter(
-        (task) => getTaskStatus(task, today) === "Overdue"
-      ).length,
+        if (mounted) {
+          dispatch(setTasks(records.map(mapTaskFromApi)));
+        }
+      } catch (error) {
+        console.error("Tasks loading failed:", error);
+      }
+    }
 
-      done: tasks.filter(
-        (task) => task.status === "Done"
-      ).length,
+    loadTasks();
+
+    return () => {
+      mounted = false;
     };
-  }, [tasks, today]);
+  }, [dispatch]);
+
+  const taskCounts = useMemo(() => ({
+    total: tasks.length,
+
+    pending: tasks.filter(
+      (task) => getTaskStatus(task, today) === "Pending"
+    ).length,
+
+    overdue: tasks.filter(
+      (task) => getTaskStatus(task, today) === "Overdue"
+    ).length,
+
+    done: tasks.filter(
+      (task) => task.status === "Done"
+    ).length,
+  }), [tasks, today]);
 
   const filteredTasks = useMemo(() => {
     return tasks
       .filter((task) => {
         const crop = crops.find(
-          (item) => Number(item.id) === Number(task.cropId)
+          (item) => String(item.id) === String(task.cropId)
         );
 
         const taskStatus = getTaskStatus(task, today);
-
         const query = search.trim().toLowerCase();
 
-const matchesSearch =
-  (task.title || "").toLowerCase().includes(query) ||
-  (crop?.name || "").toLowerCase().includes(query);
+        const matchesSearch =
+          (task.title || "").toLowerCase().includes(query) ||
+          (crop?.name || "").toLowerCase().includes(query);
 
         const matchesStatus =
-          statusFilter === "All" || taskStatus === statusFilter;
+          statusFilter === "All" ||
+          taskStatus === statusFilter;
 
         return matchesSearch && matchesStatus;
       })
       .sort((a, b) =>
-  (a.dueDate || "").localeCompare(b.dueDate || "")
-);
+        (a.dueDate || "").localeCompare(b.dueDate || "")
+      );
   }, [tasks, crops, search, statusFilter, today]);
 
   function openAddModal() {
@@ -142,9 +181,9 @@ const matchesSearch =
     setEditingId(task.id);
 
     setForm({
-      title: task.title,
-      cropId: String(task.cropId),
-      dueDate: task.dueDate,
+      title: task.title || "",
+      cropId: String(task.cropId || ""),
+      dueDate: task.dueDate || "",
       notes: task.notes || "",
     });
 
@@ -152,7 +191,7 @@ const matchesSearch =
     setModalOpen(true);
   }
 
-  function handleSubmit(event) {
+  async function handleSubmit(event) {
     event.preventDefault();
 
     if (editingId !== null && !isAdmin) {
@@ -165,68 +204,114 @@ const matchesSearch =
     const dueDate = form.dueDate;
     const notes = form.notes.trim();
 
-    if (!title || !form.cropId || !dueDate) {
-  setFormError("Please complete all required fields.");
-  return;
-}
+    if (!title || !cropId || !dueDate) {
+      setFormError("Please complete all required fields.");
+      return;
+    }
 
-if (!isValidDate(dueDate)) {
-  setFormError("Please select a valid due date.");
-  return;
-}
+    if (!isValidDate(dueDate)) {
+      setFormError("Please select a valid due date.");
+      return;
+    }
 
     const linkedCrop = crops.find(
-  (crop) => String(crop.id) === String(cropId)
-);
+      (crop) => String(crop.id) === String(cropId)
+    );
 
     if (!linkedCrop) {
       setFormError("Please select a valid crop.");
       return;
     }
 
-    const taskData = {
+    const existingTask = tasks.find(
+      (task) => String(task.id) === String(editingId)
+    );
+
+    const payload = {
       title,
       cropId,
       dueDate,
       notes,
+      status: existingTask?.status || "Pending",
+
+      // The backend Task model requires a type.
+      // The current form does not expose a task-type field.
+      type: existingTask?.type || "Irrigation",
     };
 
-    if (editingId !== null) {
-      const existingTask = tasks.find(
-        (task) => task.id === editingId
-      );
+    try {
+      if (editingId !== null) {
+        const savedTask = await updateResource(
+          "tasks",
+          editingId,
+          payload
+        );
 
-      dispatch(
-        updateTask({
-          ...existingTask,
-          ...taskData,
-        })
-      );
-    } else {
-      dispatch(
-        addTask({
-          id: Date.now(),
-          ...taskData,
-          status: "Pending",
-          createdAt: new Date().toISOString(),
-        })
+        dispatch(updateTask(mapTaskFromApi(savedTask)));
+      } else {
+        const savedTask = await createResource(
+          "tasks",
+          payload
+        );
+
+        dispatch(addTask(mapTaskFromApi(savedTask)));
+      }
+
+      setModalOpen(false);
+      setForm(emptyForm);
+      setEditingId(null);
+      setFormError("");
+    } catch (error) {
+      console.error("Task saving failed:", error);
+
+      setFormError(
+        error.response?.data?.message ||
+        "Unable to save task."
       );
     }
-
-    setModalOpen(false);
-    setFormError("");
-    setForm(emptyForm);
   }
 
-  function handleDelete(task) {
+  async function handleDelete(task) {
     if (!isAdmin) return;
 
     const confirmed = window.confirm(
       `Delete task "${task.title}"?`
     );
 
-    if (confirmed) {
+    if (!confirmed) return;
+
+    try {
+      await deleteResource("tasks", task.id);
+
       dispatch(deleteTask(task.id));
+    } catch (error) {
+      console.error("Task deletion failed:", error);
+
+      setFormError(
+        error.response?.data?.message ||
+        "Unable to delete task."
+      );
+    }
+  }
+
+  async function handleComplete(task) {
+    try {
+      const savedTask = await updateResource(
+        "tasks",
+        task.id,
+        {
+          status: "Done",
+        }
+      );
+
+      dispatch(updateTask(mapTaskFromApi(savedTask)));
+    } catch (error) {
+      console.error("Task completion failed:", error);
+
+      setFormError(
+        error.response?.data?.message ||
+        "Unable to complete task."
+      );
     }
   }
 
@@ -362,7 +447,7 @@ if (!isValidDate(dueDate)) {
                     {task.status !== "Done" && (
                       <button
                         type="button"
-                        onClick={() => dispatch(markTaskDone(task.id))}
+                        onClick={() => handleComplete(task)}
                         className="task-done-button"
                       >
                         <CheckCircle2 size={16} />
@@ -466,6 +551,8 @@ if (!isValidDate(dueDate)) {
                     }
                     required
                   >
+                    <option value="">Select a crop</option>
+
                     {crops.map((crop) => (
                       <option key={crop.id} value={crop.id}>
                         {crop.name} — {crop.field}
