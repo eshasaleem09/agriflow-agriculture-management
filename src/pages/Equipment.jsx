@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
+import "./Equipment.css";
 import {
   Plus,
   Search,
@@ -15,6 +16,7 @@ import {
   addEquipment,
   updateEquipment,
   deleteEquipment,
+  setEquipment,
 } from "../features/equipment/equipmentSlice.js";
 
 import {
@@ -24,6 +26,12 @@ import {
   calculateNextServiceDate,
   getServiceStatus,
 } from "../features/equipment/equipmentUtils.js";
+import {
+  getResources,
+  createResource,
+  updateResource,
+  deleteResource,
+} from "../app/redux/api/resourceHelpers.js";
 
 function Equipment() {
   const dispatch = useDispatch();
@@ -33,6 +41,31 @@ function Equipment() {
   const maintenance = useSelector(
     (state) => state.maintenance || []
   );
+  useEffect(() => {
+  let isMounted = true;
+
+  async function loadEquipment() {
+    try {
+      const records = await getResources("equipment");
+
+      if (isMounted) {
+        dispatch(setEquipment(records));
+      }
+    } catch (error) {
+      console.error("Equipment loading failed:", error);
+      setSuccess(
+        error.response?.data?.message ||
+        "Unable to load equipment from server."
+      );
+    }
+  }
+
+  loadEquipment();
+
+  return () => {
+    isMounted = false;
+  };
+}, [dispatch]);
   const user = useSelector((state) => state.auth?.user);
 
   // Only Admin can manage equipment
@@ -143,54 +176,67 @@ function Equipment() {
   }
 
   // Add or update equipment
-  function handleSubmit(event) {
-    event.preventDefault();
+async function handleSubmit(event) {
+  event.preventDefault();
 
-    if (!isAdmin) return;
+  if (!isAdmin) return;
 
-    const validationErrors = validateEquipment(
-      form,
-      equipment,
-      editingId
-    );
+  const validationErrors = validateEquipment(
+    form,
+    equipment,
+    editingId
+  );
 
-    setErrors(validationErrors);
+  setErrors(validationErrors);
 
-    if (Object.keys(validationErrors).length > 0) {
-      return;
-    }
+  if (Object.keys(validationErrors).length > 0) {
+    return;
+  }
 
-    const existingEquipment = equipment.find(
-      (item) => String(item.id) === String(editingId)
-    );
+  const existingEquipment = equipment.find(
+    (item) => String(item.id) === String(editingId)
+  );
 
-    const record = {
-      ...form,
-      id:
-        editingId !== null
-          ? editingId
-          : `equipment-${Date.now()}`,
+  const payload = {
+    name: form.name.trim(),
+    type: form.type,
+    purchaseDate: form.purchaseDate || null,
+    status: form.status,
+    lastServiceDate: form.lastServiceDate || null,
+    serviceIntervalDays: Number(form.serviceIntervalDays),
+    notes: form.notes.trim(),
+  };
 
-      serviceIntervalDays: Number(
-        form.serviceIntervalDays
-      ),
-
-      initialLastServiceDate:
-        existingEquipment?.initialLastServiceDate ||
-        existingEquipment?.lastServiceDate ||
-        form.lastServiceDate,
-
-      updatedAt: new Date().toISOString(),
-    };
-
+  try {
     if (editingId !== null) {
-      dispatch(updateEquipment(record));
+      const savedEquipment = await updateResource(
+        "equipment",
+        editingId,
+        payload
+      );
+
+      dispatch(
+        updateEquipment({
+          ...savedEquipment,
+          initialLastServiceDate:
+            existingEquipment?.initialLastServiceDate ||
+            existingEquipment?.lastServiceDate ||
+            savedEquipment.lastServiceDate,
+        })
+      );
+
       setSuccess("Equipment updated successfully.");
     } else {
+      const savedEquipment = await createResource(
+        "equipment",
+        payload
+      );
+
       dispatch(
         addEquipment({
-          ...record,
-          createdAt: new Date().toISOString(),
+          ...savedEquipment,
+          initialLastServiceDate:
+            savedEquipment.lastServiceDate,
         })
       );
 
@@ -198,34 +244,53 @@ function Equipment() {
     }
 
     closeModal();
+  } catch (error) {
+    console.error("Equipment save failed:", error);
+
+    setSuccess(
+      error.response?.data?.message ||
+      "Unable to save equipment. Please try again."
+    );
+  }
+}
+
+// Delete equipment
+async function handleDelete(id) {
+  if (!isAdmin) return;
+
+  const hasMaintenance = maintenance.some(
+    (record) =>
+      String(record.equipmentId) === String(id)
+  );
+
+  if (hasMaintenance) {
+    window.alert(
+      "This equipment has maintenance records. Delete its maintenance records first."
+    );
+    return;
   }
 
-  // Delete equipment
-  function handleDelete(id) {
-    if (!isAdmin) return;
+  const confirmed = window.confirm(
+    "Are you sure you want to delete this equipment?"
+  );
 
-    const hasMaintenance = maintenance.some(
-      (record) =>
-        String(record.equipmentId) === String(id)
-    );
+  if (!confirmed) return;
 
-    if (hasMaintenance) {
-      window.alert(
-        "This equipment has maintenance records. Delete its maintenance records first."
-      );
-      return;
-    }
-
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this equipment?"
-    );
-
-    if (!confirmed) return;
+  try {
+    await deleteResource("equipment", id);
 
     dispatch(deleteEquipment(id));
 
     setSuccess("Equipment deleted successfully.");
+  } catch (error) {
+    console.error("Equipment deletion failed:", error);
+
+    setSuccess(
+      error.response?.data?.message ||
+      "Unable to delete equipment. Please try again."
+    );
   }
+}
 
   // Status CSS class
   function getStatusClass(status) {
@@ -235,7 +300,7 @@ function Equipment() {
   }
 
   return (
-    <div className="management-page">
+    <div className="management-page equipment-page">
 
       {/* Page heading */}
       <div className="page-header">

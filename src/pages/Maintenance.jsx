@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useDispatch, useSelector } from "react-redux";
 import {
   Plus,
@@ -8,27 +8,37 @@ import {
   Wrench,
   X,
 } from "lucide-react";
-
 import {
+  setMaintenance,
   addMaintenance,
   updateMaintenance,
   deleteMaintenance,
 } from "../features/maintenance/maintenanceSlice.js";
-
 import {
+  setEquipment,
   updateLastServiceDate,
 } from "../features/equipment/equipmentSlice.js";
 
 import {
+  setExpenses,
   addExpense,
   updateExpense,
   deleteExpense,
 } from "../features/expenses/expensesSlice.js";
-
 import {
   validateMaintenance,
   getLatestServiceDate,
 } from "../features/maintenance/maintenanceUtils.js";
+import {
+  getResources,
+  updateResource,
+} from "../app/redux/api/resourceHelpers.js";
+
+import {
+  createMaintenanceApi,
+  updateMaintenanceApi,
+  deleteMaintenanceApi,
+} from "../app/redux/api/maintenanceApi.js";
 
 // Get local date in YYYY-MM-DD format
 function getLocalDate() {
@@ -80,6 +90,44 @@ function Maintenance() {
   };
 
   const [form, setForm] = useState(emptyForm);
+  useEffect(() => {
+  const loadMaintenanceData = async () => {
+    try {
+      const [maintenanceRecords, equipmentRecords, expenseRecords] =
+        await Promise.all([
+          getResources("maintenance"),
+          getResources("equipment"),
+          getResources("expenses"),
+        ]);
+
+      dispatch(setMaintenance(maintenanceRecords));
+
+      dispatch(
+        setEquipment(
+          equipmentRecords.map((item) => ({
+            ...item,
+            initialLastServiceDate:
+              item.initialLastServiceDate || item.lastServiceDate || "",
+          }))
+        )
+      );
+
+      dispatch(
+        setExpenses(
+          expenseRecords.map((item) => ({
+            ...item,
+            notes: item.note || "",
+          }))
+        )
+      );
+    } catch (error) {
+      console.error("Failed to load maintenance data:", error);
+      setSuccess("Could not load maintenance data from the server.");
+    }
+  };
+
+  loadMaintenanceData();
+}, [dispatch]);
 
   // Search maintenance records
   const filteredRecords = useMemo(() => {
@@ -114,22 +162,25 @@ function Maintenance() {
     );
   }, [maintenance]);
 
-  // Recalculate equipment's latest service date
-  function refreshEquipmentServiceDate(equipmentId, records) {
-    const machine = equipment.find(
-      (item) =>
-        String(item.id) === String(equipmentId)
-    );
+async function refreshEquipmentServiceDate(equipmentId, records) {
+  const machine = equipment.find(
+    (item) => String(item.id) === String(equipmentId)
+  );
 
-    if (!machine) return;
+  if (!machine) return;
 
-    const latestDate = getLatestServiceDate(
-      equipmentId,
-      records,
-      machine.initialLastServiceDate ||
-        machine.lastServiceDate ||
-        ""
-    );
+  const latestDate = getLatestServiceDate(
+    equipmentId,
+    records,
+    machine.initialLastServiceDate ||
+      machine.lastServiceDate ||
+      ""
+  );
+
+  try {
+    await updateResource("equipment", machine.id, {
+      lastServiceDate: latestDate || null,
+    });
 
     dispatch(
       updateLastServiceDate({
@@ -137,7 +188,11 @@ function Maintenance() {
         lastServiceDate: latestDate,
       })
     );
+  } catch (error) {
+    console.error("Equipment service date update failed:", error);
+    throw error;
   }
+}
 
   // Open add modal
   function openAddModal() {
@@ -194,160 +249,174 @@ function Maintenance() {
       [name]: value,
     }));
   }
+  async function handleSubmit(event) {
+  event.preventDefault();
 
-  // Create or update linked expense
-  function syncExpense(record) {
-    const expenseId = `maintenance-expense-${record.id}`;
+  if (!isAdmin) return;
 
-    const linkedExpense = {
-      id: expenseId,
-      cropId: null,
-      type: "Expense",
-      category: "Repair",
-      amount: Number(record.cost),
-      date: record.date,
-      notes: `Equipment maintenance: ${record.description}`,
-    };
-
-    const alreadyExists = expenses.some(
-      (item) =>
-        String(item.id) === String(expenseId)
+  if (equipment.length === 0) {
+    window.alert(
+      "Please add equipment before recording maintenance."
     );
-
-    if (alreadyExists) {
-      dispatch(updateExpense(linkedExpense));
-    } else {
-      dispatch(addExpense(linkedExpense));
-    }
+    return;
   }
 
-  // Add or update maintenance record
-  function handleSubmit(event) {
-    event.preventDefault();
+  const validationErrors = validateMaintenance(form, equipment);
 
-    if (!isAdmin) return;
+  setErrors(validationErrors);
 
-    if (equipment.length === 0) {
-      window.alert(
-        "Please add equipment before recording maintenance."
-      );
-      return;
-    }
+  if (Object.keys(validationErrors).length > 0) return;
 
-    const validationErrors = validateMaintenance(
-      form,
-      equipment
-    );
+  const oldRecord = maintenance.find(
+    (item) => String(item.id) === String(editingId)
+  );
 
-    setErrors(validationErrors);
+  const payload = {
+    equipmentId: form.equipmentId,
+    date: form.date,
+    description: form.description.trim(),
+    cost: Number(form.cost),
+    performedBy: form.performedBy.trim(),
+  };
 
-    if (Object.keys(validationErrors).length > 0) {
-      return;
-    }
+  try {
+    let result;
 
-    const oldRecord = maintenance.find(
-      (item) =>
-        String(item.id) === String(editingId)
-    );
+if (editingId !== null) {
+  result = await updateMaintenanceApi(editingId, payload);
+} else {
+  result = await createMaintenanceApi(payload);
+}
 
-    const record = {
-      ...form,
-      id:
-        editingId !== null
-          ? editingId
-          : `maintenance-${Date.now()}`,
-      cost: Number(form.cost),
-      equipmentId: form.equipmentId,
-      updatedAt: new Date().toISOString(),
-    };
+if (!result.succeeded) {
+  throw new Error(result.message || "Maintenance operation failed.");
+}
 
-    if (editingId !== null) {
-      dispatch(updateMaintenance(record));
+const savedRecord = result.data.maintenance;
+const savedExpenses = result.data.expenses || [];
 
-      // Update or recreate linked expense
-      syncExpense(record);
+// Update Maintenance Redux state
+if (editingId !== null) {
+  dispatch(updateMaintenance(savedRecord));
+} else {
+  dispatch(addMaintenance(savedRecord));
+}
 
-      // Recalculate previous equipment if equipment changed
-      if (
-        String(oldRecord?.equipmentId) !==
-        String(record.equipmentId)
-      ) {
-        const oldEquipmentRecords = maintenance.filter(
-          (item) =>
-            String(item.id) !== String(editingId)
-        );
+// Update linked Expenses Redux state
+savedExpenses.forEach((expense) => {
+  const normalizedExpense = {
+    ...expense,
+    notes: expense.note || "",
+  };
 
-        refreshEquipmentServiceDate(
-          oldRecord.equipmentId,
-          oldEquipmentRecords
-        );
-      }
+  const alreadyExists = expenses.some(
+    (item) => String(item.id) === String(expense.id)
+  );
 
-      setSuccess("Maintenance record updated successfully.");
-    } else {
-      dispatch(
-        addMaintenance({
-          ...record,
-          createdAt: new Date().toISOString(),
-        })
-      );
+  if (alreadyExists) {
+    dispatch(updateExpense(normalizedExpense));
+  } else {
+    dispatch(addExpense(normalizedExpense));
+  }
+});
 
-      syncExpense(record);
-
-      setSuccess("Maintenance record added successfully.");
-    }
-
-    // Recalculate selected equipment's service date
     const updatedRecords =
       editingId !== null
         ? maintenance.map((item) =>
             String(item.id) === String(editingId)
-              ? record
+              ? savedRecord
               : item
           )
-        : [...maintenance, record];
+        : [...maintenance, savedRecord];
 
-    refreshEquipmentServiceDate(
-      record.equipmentId,
+    // Recalculate previous equipment if equipment changed
+    if (
+      editingId !== null &&
+      String(oldRecord?.equipmentId) !==
+        String(savedRecord.equipmentId)
+    ) {
+      const oldEquipmentRecords = maintenance.filter(
+        (item) => String(item.id) !== String(editingId)
+      );
+
+      await refreshEquipmentServiceDate(
+        oldRecord.equipmentId,
+        oldEquipmentRecords
+      );
+    }
+
+    await refreshEquipmentServiceDate(
+      savedRecord.equipmentId,
       updatedRecords
     );
 
-    closeModal();
-  }
-
-  // Delete maintenance record
-  function handleDelete(record) {
-    if (!isAdmin) return;
-
-    const confirmed = window.confirm(
-      "Are you sure you want to delete this maintenance record? Its linked expense will also be removed."
+    setSuccess(
+      editingId !== null
+        ? "Maintenance record updated successfully."
+        : "Maintenance record added successfully."
     );
 
-    if (!confirmed) return;
+    closeModal();
+  } catch (error) {
+    console.error("Maintenance save failed:", error);
 
+    setSuccess(
+      error.response?.data?.message ||
+      "Could not save maintenance record. Please try again."
+    );
+  }
+}
+ async function handleDelete(record) {
+  if (!isAdmin) return;
+
+  const confirmed = window.confirm(
+    "Are you sure you want to delete this maintenance record? Its linked expense will also be removed."
+  );
+
+  if (!confirmed) return;
+
+  try {
+    // Delete Maintenance and linked Expenses through one transaction
+    const result = await deleteMaintenanceApi(record.id);
+
+    if (!result.succeeded) {
+      throw new Error(result.message || "Maintenance deletion failed.");
+    }
+
+    // Remove linked Expenses from Redux
+    const deletedExpenseIds = result.data?.deletedExpenseIds || [];
+
+    deletedExpenseIds.forEach((id) => {
+      dispatch(deleteExpense(id));
+    });
+
+    // Remove Maintenance from Redux
     dispatch(deleteMaintenance(record.id));
 
-    dispatch(
-      deleteExpense(
-        `maintenance-expense-${record.id}`
-      )
-    );
-
     const remainingRecords = maintenance.filter(
-      (item) =>
-        String(item.id) !== String(record.id)
+      (item) => String(item.id) !== String(record.id)
     );
 
-    refreshEquipmentServiceDate(
+    // Recalculate equipment service date
+    await refreshEquipmentServiceDate(
       record.equipmentId,
       remainingRecords
     );
 
     setSuccess("Maintenance record deleted successfully.");
-  }
+   } catch (error) {
+    console.error("Maintenance deletion failed:", error);
 
-  return (
-    <div className="management-page">
+    setSuccess(
+      error.response?.data?.message ||
+      error.message ||
+      "Could not delete maintenance record. Please try again."
+    );
+  }
+}
+
+return (
+  <div className="management-page">
 
       {/* Page heading */}
       <div className="page-header">
@@ -703,5 +772,4 @@ function Maintenance() {
     </div>
   );
 }
-
 export default Maintenance;

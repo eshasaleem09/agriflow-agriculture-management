@@ -11,6 +11,10 @@ const equipmentSlice = createSlice({
     addEquipment: (state, action) => {
       state.push(action.payload);
     },
+    // Load equipment from backend
+setEquipment: (state, action) => {
+  return action.payload;
+},
 
     // Update equipment details
     updateEquipment: (state, action) => {
@@ -66,6 +70,7 @@ export const {
   deleteEquipment,
   updateEquipmentStatus,
   updateLastServiceDate,
+  setEquipment,
 } = equipmentSlice.actions;
 
 export default equipmentSlice.reducer;

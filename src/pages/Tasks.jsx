@@ -99,28 +99,38 @@ function Tasks() {
 
   const [form, setForm] = useState(emptyForm);
 
-  // Load tasks from backend
-  useEffect(() => {
-    let mounted = true;
+    // Load tasks and crops from backend
+useEffect(() => {
+  let mounted = true;
 
-    async function loadTasks() {
-      try {
-        const records = await getResources("tasks");
+  async function loadData() {
+    try {
+      const [taskRecords, cropRecords] = await Promise.all([
+        getResources("tasks"),
+        getResources("crops"),
+      ]);
 
-        if (mounted) {
-          dispatch(setTasks(records.map(mapTaskFromApi)));
-        }
-      } catch (error) {
-        console.error("Tasks loading failed:", error);
+      if (mounted) {
+        dispatch(setTasks(taskRecords.map(mapTaskFromApi)));
+
+        dispatch({
+          type: "app/HYDRATE_STATE",
+          payload: {
+            crops: cropRecords,
+          },
+        });
       }
+    } catch (error) {
+      console.error("Tasks or crops loading failed:", error);
     }
+  }
 
-    loadTasks();
+  loadData();
 
-    return () => {
-      mounted = false;
-    };
-  }, [dispatch]);
+  return () => {
+    mounted = false;
+  };
+}, [dispatch]);
 
   const taskCounts = useMemo(() => ({
     total: tasks.length,

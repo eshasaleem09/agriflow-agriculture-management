@@ -7,6 +7,9 @@ const maintenanceSlice = createSlice({
   initialState,
 
   reducers: {
+    setMaintenance: (state, action) => {
+  return action.payload;
+},
     // Add maintenance record
     addMaintenance: (state, action) => {
       state.push(action.payload);
@@ -35,8 +38,8 @@ const maintenanceSlice = createSlice({
     },
   },
 });
-
 export const {
+  setMaintenance,
   addMaintenance,
   updateMaintenance,
   deleteMaintenance,

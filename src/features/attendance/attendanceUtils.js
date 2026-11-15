@@ -25,20 +25,26 @@ export const validateAttendance = (
     errors.workerId = "Selected worker does not exist.";
   }
 
-  // Validate date
-  if (!record.date) {
-    errors.date = "Please select an attendance date.";
-  } else {
-    const date = new Date(`${record.date}T00:00:00`);
+ // Validate date
+if (!record.date) {
+  errors.date = "Please select an attendance date.";
+} else {
+  const dateParts = record.date.split("-").map(Number);
 
-    if (
-      !/^\d{4}-\d{2}-\d{2}$/.test(record.date) ||
-      Number.isNaN(date.getTime()) ||
-      date.toISOString().slice(0, 10) !== record.date
-    ) {
-      errors.date = "Please select a valid date.";
-    }
+  const [year, month, day] = dateParts;
+
+  const selectedDate = new Date(year, month - 1, day);
+
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(record.date) ||
+    dateParts.length !== 3 ||
+    selectedDate.getFullYear() !== year ||
+    selectedDate.getMonth() !== month - 1 ||
+    selectedDate.getDate() !== day
+  ) {
+    errors.date = "Please select a valid date.";
   }
+}
 
   // Validate status
   if (!ATTENDANCE_STATUSES.includes(record.status)) {

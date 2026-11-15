@@ -8,7 +8,6 @@ import {
 
 import MainLayout from "./layout/MainLayout.jsx";
 import ProtectedRoute from "./components/auth/ProtectedRoute.jsx";
-
 import Tasks from "./pages/Tasks";
 import Dashboard from "./pages/Dashboard";
 import Crops from "./pages/Crops";
@@ -26,6 +25,7 @@ import Workers from "./pages/workers/Workers.jsx";
 import Attendance from "./pages/Attendance.jsx";
 import Equipment from "./pages/Equipment.jsx";
 import Maintenance from "./pages/Maintenance.jsx";
+import UserRegistration from "./pages/UserRegistration.jsx";
 
 import "./App.css";
 
@@ -54,6 +54,12 @@ function App() {
             <Route path="maintenance" element={<Maintenance />} />
             <Route path="reports" element={<Reports />} />
             <Route path="activity-log" element={<ActivityLog />} />
+            <Route element={<ProtectedRoute allowedRoles={["Admin"]} />}>
+  <Route
+    path="user-registration"
+    element={<UserRegistration />}
+  />
+</Route>
 
             <Route
               path="harvest-orders"

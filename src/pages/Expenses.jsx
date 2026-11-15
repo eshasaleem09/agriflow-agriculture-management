@@ -19,6 +19,12 @@ import {
   deleteExpense,
   setExpenses,
 } from "../features/expenses/expensesSlice.js";
+import {
+  getResources,
+  createResource,
+  updateResource,
+  deleteResource,
+} from "../app/redux/api/resourceHelpers.js";
 
 function getLocalDate() {
   const now = new Date();
@@ -45,6 +51,28 @@ function Expenses() {
   const { user } = useSelector((state) => state.auth);
 
   const isAdmin = user?.role === "Admin";
+
+  useEffect(() => {
+    const loadExpenses = async () => {
+      try {
+        const records = await getResources("expenses");
+
+        const formattedRecords = records.map((item) => ({
+          ...item,
+          notes: item.note || "",
+        }));
+
+        dispatch(setExpenses(formattedRecords));
+      } catch (error) {
+        console.error("Failed to load expenses:", error);
+        setError("Could not load expenses from the server.");
+      }
+    };
+
+    loadExpenses();
+  }, [dispatch]);
+
+  // Your remaining code continues here...
 
   const [modalOpen, setModalOpen] = useState(false);
   const [editingId, setEditingId] = useState(null);
@@ -153,81 +181,123 @@ const netProfit = totalIncome - totalExpenses;
     setModalOpen(true);
   }
 
-  function handleSubmit(event) {
-    event.preventDefault();
+  async function handleSubmit(event) {
+  event.preventDefault();
 
-    if (editingId !== null && !isAdmin) {
-      setError("Only an Admin can edit financial records.");
-      return;
-    }
+  if (editingId !== null && !isAdmin) {
+    setError("Only an Admin can edit financial records.");
+    return;
+  }
 
-    const category = form.category.trim();
-    const amount = Number(form.amount);
-    const cropId = Number(form.cropId);
+  const category = form.category.trim();
+  const amount = Number(form.amount);
+  const cropId = form.cropId || null;
 
-   if (
-  !category ||
-  !form.date ||
-  form.amount === ""
-) {
-      setError("Please complete all required fields.");
-      return;
-    }
+  if (!category || !form.date || form.amount === "") {
+    setError("Please complete all required fields.");
+    return;
+  }
 
-    if (!Number.isFinite(amount) || amount <= 0) {
-      setError("Amount must be greater than zero.");
-      return;
-    }
-    if (
-  !/^\d{4}-\d{2}-\d{2}$/.test(form.date) ||
-  new Date(`${form.date}T00:00:00`).toISOString().slice(0, 10) !== form.date
-) {
-  setError("Please select a valid date.");
-  return;
-}
+  if (!Number.isFinite(amount) || amount <= 0) {
+    setError("Amount must be greater than zero.");
+    return;
+  }
 
-    const linkedCrop = form.cropId
-  ? crops.find((crop) => Number(crop.id) === cropId)
-  : null;
+  const dateParts = form.date.split("-").map(Number);
+  const [year, month, day] = dateParts;
+  const selectedDate = new Date(year, month - 1, day);
 
-if (form.cropId && !linkedCrop) {
-  setError("Please select a valid crop.");
-  return;
-}
+  if (
+    !/^\d{4}-\d{2}-\d{2}$/.test(form.date) ||
+    dateParts.length !== 3 ||
+    selectedDate.getFullYear() !== year ||
+    selectedDate.getMonth() !== month - 1 ||
+    selectedDate.getDate() !== day
+  ) {
+    setError("Please select a valid date.");
+    return;
+  }
 
-    const record = {
-      id: editingId ?? Date.now(),
-      type: form.type,
-      cropId: form.cropId ? cropId : null,
-      category,
-      amount,
-      date: form.date,
-      notes: form.notes.trim(),
-      
-    };
+  const linkedCrop = cropId
+    ? crops.find((crop) => String(crop.id) === String(cropId))
+    : null;
+
+  if (cropId && !linkedCrop) {
+    setError("Please select a valid crop.");
+    return;
+  }
+
+  const payload = {
+    type: form.type,
+    cropId,
+    category,
+    amount,
+    date: form.date,
+    note: form.notes.trim(),
+  };
+
+  try {
+    let savedRecord;
 
     if (editingId !== null) {
-      dispatch(updateExpense(record));
+      savedRecord = await updateResource(
+        "expenses",
+        editingId,
+        payload
+      );
+
+      dispatch(
+        updateExpense({
+          ...savedRecord,
+          notes: savedRecord.note || "",
+        })
+      );
     } else {
-      dispatch(addExpense(record));
+      savedRecord = await createResource("expenses", payload);
+
+      dispatch(
+        addExpense({
+          ...savedRecord,
+          notes: savedRecord.note || "",
+        })
+      );
     }
 
     setModalOpen(false);
     setForm(emptyForm);
+    setEditingId(null);
     setError("");
-  }
-
-  function handleDelete(item) {
-    if (!isAdmin) return;
-
-    const confirmed = window.confirm(
-      `Delete this ${item.type.toLowerCase()} record?`
+  } catch (error) {
+    console.error("Expense save failed:", error);
+    setError(
+      error.response?.data?.message ||
+      "Could not save expense. Please try again."
     );
-
-    if (confirmed) {
-      dispatch(deleteExpense(item.id));
-    }
   }
+}
+
+  async function handleDelete(item) {
+  if (!isAdmin) return;
+
+  const confirmed = window.confirm(
+    `Delete this ${item.type.toLowerCase()} record?`
+  );
+
+  if (!confirmed) return;
+
+  try {
+    await deleteResource("expenses", item.id);
+
+    dispatch(deleteExpense(item.id));
+    setError("");
+  } catch (error) {
+    console.error("Expense deletion failed:", error);
+    setError(
+      error.response?.data?.message ||
+      "Could not delete expense. Please try again."
+    );
+  }
+}
 
   return (
     <section className="expenses-page">

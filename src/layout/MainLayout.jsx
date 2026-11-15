@@ -23,6 +23,7 @@ import {
   ClipboardCheck,
   Tractor,
 Wrench,
+UserPlus,
 } from "lucide-react";
 
 import { logout } from "../features/auth/authSlice.js";
@@ -112,7 +113,14 @@ const menuItems = [
   path: "/maintenance",
   icon: Wrench,
 },
+{
+  label: "User Registration",
+  path: "/user-registration",
+  icon: UserPlus,
+  adminOnly: true,
+},
 ];
+
 
 function MainLayout() {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -177,7 +185,13 @@ function MainLayout() {
         >
           <p className="menu-heading">MAIN MENU</p>
 
-          {menuItems.map((item) => {
+          {menuItems
+  .filter(
+    (item) =>
+      !item.adminOnly ||
+      user?.role?.toLowerCase() === "admin"
+  )
+  .map((item) => {
             const Icon = item.icon;
 
             return (
