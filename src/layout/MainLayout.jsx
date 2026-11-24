@@ -114,7 +114,7 @@ const menuItems = [
   icon: Wrench,
 },
 {
-  label: "User Registration",
+  label: "User Management",
   path: "/user-registration",
   icon: UserPlus,
   adminOnly: true,

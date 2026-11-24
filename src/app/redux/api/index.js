@@ -27,16 +27,20 @@ apiClient.interceptors.request.use(
 
 // Authentication API
 export const authApi = {
-  login: (credentials) =>
-    apiClient.post("/auth/login", credentials),
+  login: (credentials) => apiClient.post("/auth/login", credentials),
 
-  register: (userData) =>
-    apiClient.post("/auth/register", userData),
+  register: (userData) => apiClient.post("/auth/register", userData),
 
-  profile: () =>
-    apiClient.get("/auth/profile"),
+  profile: () => apiClient.get("/auth/profile"),
+
+  getUsers: () => apiClient.get("/auth/users"),
+
+  updateUser: (id, userData) =>
+    apiClient.put(`/auth/users/${id}`, userData),
+
+  deleteUser: (id) =>
+    apiClient.delete(`/auth/users/${id}`),
 };
-
 // CRUD API
 export const resourceApi = {
   getAll: (resource) =>
